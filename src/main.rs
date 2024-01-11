@@ -1,18 +1,22 @@
 use std::f32::consts::PI;
-use bevy::a11y::AccessibilitySystem::Update;
 use bevy::app::{App, Startup};
 use bevy::asset::Assets;
 use bevy::DefaultPlugins;
 use bevy::math::{Quat, Vec3};
 use bevy::pbr::{CascadeShadowConfigBuilder, DirectionalLightBundle, PbrBundle, StandardMaterial};
-use bevy::prelude::{Camera3dBundle, Color, Commands, Component, DirectionalLight, Mesh, Query, ResMut, Transform};
+use bevy::prelude::{Camera3dBundle, Color, Commands, Component, DirectionalLight, Mesh, ResMut, Transform};
 use bevy::prelude::shape::{Capsule, Plane};
 use bevy::transform::TransformBundle;
 use bevy::utils::default;
+use bevy_rapier3d::dynamics::{RigidBody, Velocity};
+use bevy_rapier3d::plugin::{NoUserData, RapierPhysicsPlugin};
+use bevy_rapier3d::render::RapierDebugRenderPlugin;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
+        .add_plugins(RapierDebugRenderPlugin::default())
         .add_systems(Startup, startup)
         .run();
 }
@@ -56,7 +60,11 @@ fn startup(
         ..default()
     });
 
-    commands.spawn_empty()
+    commands.spawn(RigidBody::Dynamic)
+        .insert(Velocity {
+            linvel: Vec3::new(0., 0., 1.),
+            angvel: Vec3::ZERO,
+        })
         .insert(
             PbrBundle {
                 mesh: meshes.add(Capsule::default().into()).into(),
