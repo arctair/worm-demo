@@ -84,14 +84,23 @@ fn startup_worm(
     let mesh = meshes.add(Mesh::try_from(Icosphere { radius: 0.25, subdivisions: 2 }).unwrap());
     let material = materials.add(Color::BEIGE.into());
 
+    let mut body = WormBody {
+        mesh: mesh.clone(),
+        material: material.clone(),
+        ..default()
+    };
+
+    for index in -16..0 {
+        body.append_node(commands.spawn_empty(), Vec3::new(0., 0., 0.25 * index as f32));
+    }
+
     commands.spawn_empty()
         .insert(Controls::default())
-        .insert(SpatialBundle::default())
-        .insert(WormBody {
-            mesh: mesh.clone(),
-            material: material.clone(),
+        .insert(SpatialBundle {
+            transform: Transform::from_rotation(Quat::from_rotation_y(PI)),
             ..default()
         })
+        .insert(body)
         .with_children(|parent| {
             parent.spawn(PbrBundle {
                 mesh: mesh.clone(),
