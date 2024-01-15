@@ -2,6 +2,7 @@ use std::f32::consts::PI;
 use bevy::app::{App, Startup, Update};
 use bevy::asset::{Assets, Handle};
 use bevy::DefaultPlugins;
+use bevy::ecs::system::EntityCommands;
 use bevy::hierarchy::BuildChildren;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::KeyboardInput;
@@ -58,6 +59,21 @@ struct WormBody {
     material: Handle<StandardMaterial>,
     translation: Option<Vec3>,
     nodes: Vec<Entity>,
+}
+
+impl WormBody {
+    fn append_node(&mut self, mut entity_commands: EntityCommands, translation: Vec3) {
+        self.translation = Some(translation);
+
+        let bundle = PbrBundle {
+            mesh: self.mesh.clone(),
+            material: self.material.clone(),
+            transform: Transform::from_translation(translation),
+            ..default()
+        };
+
+        self.nodes.push(entity_commands.insert(bundle).id());
+    }
 }
 
 fn startup_worm(
@@ -135,31 +151,11 @@ fn worm_node_system(
     let (transform, mut body) = query.single_mut();
 
     match body.translation {
-        None => {
-            body.translation = Some(transform.translation);
-
-            let bundle = PbrBundle {
-                mesh: body.mesh.clone(),
-                material: body.material.clone(),
-                transform: transform.clone(),
-                ..default()
-            };
-            body.nodes.push(commands.spawn(bundle).id());
-        }
-        Some(translation) => {
-            if transform.translation.distance(translation) >= distance_between {
-                let new_translation = translation + distance_between * (transform.translation - translation).normalize();
-                body.translation = Some(new_translation);
-
-                let bundle = PbrBundle {
-                    mesh: body.mesh.clone(),
-                    material: body.material.clone(),
-                    transform: Transform::from_translation(new_translation),
-                    ..default()
-                };
-                body.nodes.push(commands.spawn(bundle).id());
-            }
-        }
+        None =>
+            body.append_node(commands.spawn_empty(), transform.translation),
+        Some(translation) if transform.translation.distance(translation) >= distance_between =>
+            body.append_node(commands.spawn_empty(), translation + distance_between * (transform.translation - translation).normalize()),
+        Some(_) => {}
     }
 
     while body.nodes.len() > max_count {
