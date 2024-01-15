@@ -3,12 +3,12 @@ use bevy::app::{App, Startup, Update};
 use bevy::asset::{Assets, Handle};
 use bevy::DefaultPlugins;
 use bevy::ecs::system::EntityCommands;
-use bevy::hierarchy::BuildChildren;
+use bevy::hierarchy::{BuildChildren};
 use bevy::input::ButtonState;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::math::{Quat, Vec3};
 use bevy::pbr::{CascadeShadowConfigBuilder, DirectionalLightBundle, PbrBundle, StandardMaterial};
-use bevy::prelude::{Camera3dBundle, Color, Commands, Component, DirectionalLight, Entity, EventReader, KeyCode, Mesh, Query, Res, ResMut, SpatialBundle, Transform};
+use bevy::prelude::{Camera3dBundle, Color, Commands, Component, DirectionalLight, Entity, EventReader, KeyCode, Mesh, Query, Res, ResMut, SpatialBundle, Transform, With};
 use bevy::prelude::shape::{Icosphere};
 use bevy::time::Time;
 use bevy::utils::default;
@@ -84,6 +84,22 @@ fn startup_worm(
     let mesh = meshes.add(Mesh::try_from(Icosphere { radius: 0.25, subdivisions: 2 }).unwrap());
     let material = materials.add(Color::BEIGE.into());
 
+    let camera = commands.spawn(Camera3dBundle {
+        transform: Transform::from_xyz(0., 16., 1.).looking_at(Vec3::new(0., 0., 1.), Vec3::NEG_Z),
+        ..default()
+    }).id();
+
+    let head = commands.spawn_empty()
+        .insert(Controls::default())
+        .insert(PbrBundle {
+            mesh: mesh.clone(),
+            material: material.clone(),
+            transform: Transform::from_rotation(Quat::from_rotation_y(PI)),
+            ..default()
+        })
+        .add_child(camera)
+        .id();
+
     let mut body = WormBody {
         mesh: mesh.clone(),
         material: material.clone(),
@@ -94,23 +110,8 @@ fn startup_worm(
         body.append_node(commands.spawn_empty(), Vec3::new(0., 0., 0.25 * index as f32));
     }
 
-    commands.spawn_empty()
-        .insert(Controls::default())
-        .insert(SpatialBundle {
-            transform: Transform::from_rotation(Quat::from_rotation_y(PI)),
-            ..default()
-        })
-        .with_children(|parent| {
-            parent.spawn(PbrBundle {
-                mesh: mesh.clone(),
-                material: material.clone(),
-                ..default()
-            });
-            parent.spawn(Camera3dBundle {
-                transform: Transform::from_xyz(0., 16., 1.).looking_at(Vec3::new(0., 0., 1.), Vec3::NEG_Z),
-                ..default()
-            });
-        })
+    commands.spawn(SpatialBundle::default())
+        .add_child(head)
         .insert(body);
 }
 
@@ -153,11 +154,14 @@ fn apply_movement_from_controls(
 
 fn worm_node_system(
     mut commands: Commands,
-    mut query: Query<(&Transform, &mut WormBody)>,
+    head_query: Query<&Transform, With<Controls>>,
+    mut body_query: Query<&mut WormBody>,
 ) {
     let distance_between = 0.25;
     let max_count = 16;
-    let (transform, mut body) = query.single_mut();
+
+    let transform = head_query.single();
+    let mut body = body_query.single_mut();
 
     match body.translation {
         None =>
