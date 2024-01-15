@@ -60,6 +60,7 @@ struct Handles {
 
 #[derive(Component, Default)]
 struct WormBody {
+    translation: Option<Vec3>,
     nodes: Vec<Entity>,
 }
 
@@ -132,14 +133,15 @@ fn apply_movement_from_controls(
 fn worm_node_system(
     mut commands: Commands,
     mut query: Query<(&Handles, &Transform, &mut WormBody)>,
-    node_query: Query<&Transform>,
 ) {
     let distance_between = 0.25;
     let max_count = 16;
     let (handles, transform, mut nodes) = query.single_mut();
 
-    match nodes.nodes.last() {
+    match nodes.translation {
         None => {
+            nodes.translation = Some(transform.translation);
+
             let bundle = PbrBundle {
                 mesh: handles.mesh.clone(),
                 material: handles.material.clone(),
@@ -148,14 +150,15 @@ fn worm_node_system(
             };
             nodes.nodes.push(commands.spawn(bundle).id());
         }
-        Some(last_node) => {
-            let last_node_translation = node_query.get(*last_node).unwrap().translation;
-            if transform.translation.distance(last_node_translation) >= distance_between {
-                let delta = distance_between * (transform.translation - last_node_translation).normalize();
+        Some(translation) => {
+            if transform.translation.distance(translation) >= distance_between {
+                let new_translation = translation + distance_between * (transform.translation - translation).normalize();
+                nodes.translation = Some(new_translation);
+
                 let bundle = PbrBundle {
                     mesh: handles.mesh.clone(),
                     material: handles.material.clone(),
-                    transform: Transform::from_translation(last_node_translation + delta),
+                    transform: Transform::from_translation(new_translation),
                     ..default()
                 };
                 nodes.nodes.push(commands.spawn(bundle).id());
