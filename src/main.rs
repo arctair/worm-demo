@@ -26,7 +26,7 @@ fn main() {
 }
 
 #[derive(Component, Default)]
-struct Ship {
+struct Controls {
     forward: bool,
     backward: bool,
     left: bool,
@@ -67,7 +67,7 @@ fn startup(
     });
 
     commands.spawn(RigidBody::Dynamic)
-        .insert(Ship::default())
+        .insert(Controls::default())
         .insert(Velocity {
             linvel: Vec3::ZERO,
             angvel: Vec3::ZERO,
@@ -89,24 +89,24 @@ fn startup(
 
 fn set_controls(
     mut key_events: EventReader<KeyboardInput>,
-    mut query: Query<&mut Ship>,
+    mut query: Query<&mut Controls>,
 ) {
-    let mut ship = query.single_mut();
+    let mut controls = query.single_mut();
 
     for key_event in key_events.read() {
         match (key_event.key_code, key_event.state) {
-            (Some(KeyCode::W), ButtonState::Pressed) => { ship.forward = true }
-            (Some(KeyCode::W), ButtonState::Released) => { ship.forward = false }
-            (Some(KeyCode::S), ButtonState::Pressed) => { ship.backward = true }
-            (Some(KeyCode::S), ButtonState::Released) => { ship.backward = false }
-            (Some(KeyCode::A), ButtonState::Pressed) => { ship.left = true }
-            (Some(KeyCode::A), ButtonState::Released) => { ship.left = false }
-            (Some(KeyCode::D), ButtonState::Pressed) => { ship.right = true }
-            (Some(KeyCode::D), ButtonState::Released) => { ship.right = false }
-            (Some(KeyCode::Q), ButtonState::Pressed) => { ship.rotate_left = true }
-            (Some(KeyCode::Q), ButtonState::Released) => { ship.rotate_left = false }
-            (Some(KeyCode::E), ButtonState::Pressed) => { ship.rotate_right = true }
-            (Some(KeyCode::E), ButtonState::Released) => { ship.rotate_right = false }
+            (Some(KeyCode::W), ButtonState::Pressed) => { controls.forward = true }
+            (Some(KeyCode::W), ButtonState::Released) => { controls.forward = false }
+            (Some(KeyCode::S), ButtonState::Pressed) => { controls.backward = true }
+            (Some(KeyCode::S), ButtonState::Released) => { controls.backward = false }
+            (Some(KeyCode::A), ButtonState::Pressed) => { controls.left = true }
+            (Some(KeyCode::A), ButtonState::Released) => { controls.left = false }
+            (Some(KeyCode::D), ButtonState::Pressed) => { controls.right = true }
+            (Some(KeyCode::D), ButtonState::Released) => { controls.right = false }
+            (Some(KeyCode::Q), ButtonState::Pressed) => { controls.rotate_left = true }
+            (Some(KeyCode::Q), ButtonState::Released) => { controls.rotate_left = false }
+            (Some(KeyCode::E), ButtonState::Pressed) => { controls.rotate_right = true }
+            (Some(KeyCode::E), ButtonState::Released) => { controls.rotate_right = false }
             (_, _) => {}
         }
     }
@@ -114,9 +114,9 @@ fn set_controls(
 
 fn apply_controls(
     time: Res<Time>,
-    mut query: Query<(&mut Velocity, &Ship, &Transform)>,
+    mut query: Query<(&mut Velocity, &Controls, &Transform)>,
 ) {
-    let (mut velocity, ship, transform) = query.single_mut();
+    let (mut velocity, controls, transform) = query.single_mut();
 
     let linear_acceleration = time.delta_seconds() * 4.;
     let angular_acceleration = time.delta_seconds() * 2.;
@@ -127,17 +127,17 @@ fn apply_controls(
     let right_acceleration = Quat::from_rotation_y(-PI / 2.) * forward_acceleration;
     let yaw_acceleration = Vec3::new(0., angular_acceleration, 0.);
 
-    if ship.forward { velocity.linvel += forward_acceleration }
-    if ship.backward { velocity.linvel += backward_acceleration }
-    if ship.left { velocity.linvel += left_acceleration }
-    if ship.right { velocity.linvel += right_acceleration }
-    if !ship.forward && !ship.backward && !ship.left && !ship.right && velocity.linvel.length() > 0. {
+    if controls.forward { velocity.linvel += forward_acceleration }
+    if controls.backward { velocity.linvel += backward_acceleration }
+    if controls.left { velocity.linvel += left_acceleration }
+    if controls.right { velocity.linvel += right_acceleration }
+    if !controls.forward && !controls.backward && !controls.left && !controls.right && velocity.linvel.length() > 0. {
         let deceleration = linear_acceleration * velocity.linvel.normalize();
         velocity.linvel -= deceleration
     }
-    if ship.rotate_left { velocity.angvel += yaw_acceleration }
-    if ship.rotate_right { velocity.angvel -= yaw_acceleration }
-    if !ship.rotate_left && !ship.rotate_right {
+    if controls.rotate_left { velocity.angvel += yaw_acceleration }
+    if controls.rotate_right { velocity.angvel -= yaw_acceleration }
+    if !controls.rotate_left && !controls.rotate_right {
         let sign = velocity.angvel.y.signum();
         velocity.angvel -= sign * yaw_acceleration
     }
