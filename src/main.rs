@@ -8,20 +8,16 @@ use bevy::input::keyboard::KeyboardInput;
 use bevy::math::{Quat, Vec3};
 use bevy::pbr::{CascadeShadowConfigBuilder, DirectionalLightBundle, PbrBundle, StandardMaterial};
 use bevy::prelude::{Camera3dBundle, Color, Commands, Component, DirectionalLight, EventReader, KeyCode, Mesh, Query, Res, ResMut, SpatialBundle, Transform};
-use bevy::prelude::shape::{Capsule, Plane};
+use bevy::prelude::shape::{Icosphere, Plane};
 use bevy::time::Time;
 use bevy::utils::default;
-use bevy_rapier3d::dynamics::{RigidBody, Velocity};
-use bevy_rapier3d::plugin::{NoUserData, RapierPhysicsPlugin};
-use bevy_rapier3d::render::RapierDebugRenderPlugin;
+
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
-        .add_plugins(RapierDebugRenderPlugin::default())
         .add_systems(Startup, startup)
-        .add_systems(Update, (set_controls, apply_controls))
+        .add_systems(Update, (set_controls, apply_movement_from_controls))
         .run();
 }
 
@@ -31,8 +27,6 @@ struct Controls {
     backward: bool,
     left: bool,
     right: bool,
-    rotate_left: bool,
-    rotate_right: bool,
 }
 
 fn startup(
@@ -66,18 +60,13 @@ fn startup(
         ..default()
     });
 
-    commands.spawn(RigidBody::Dynamic)
+    commands.spawn_empty()
         .insert(Controls::default())
-        .insert(Velocity {
-            linvel: Vec3::ZERO,
-            angvel: Vec3::ZERO,
-        })
         .insert(SpatialBundle::default())
         .with_children(|parent| {
             parent.spawn(PbrBundle {
-                mesh: meshes.add(Capsule::default().into()),
-                material: materials.add(Color::RED.into()),
-                transform: Transform::from_rotation(Quat::from_rotation_x(PI / 2.)),
+                mesh: meshes.add(Mesh::try_from(Icosphere { radius: 0.25, subdivisions: 2 }).unwrap()),
+                material: materials.add(Color::BEIGE.into()),
                 ..default()
             });
             parent.spawn(Camera3dBundle {
@@ -103,42 +92,27 @@ fn set_controls(
             (Some(KeyCode::A), ButtonState::Released) => { controls.left = false }
             (Some(KeyCode::D), ButtonState::Pressed) => { controls.right = true }
             (Some(KeyCode::D), ButtonState::Released) => { controls.right = false }
-            (Some(KeyCode::Q), ButtonState::Pressed) => { controls.rotate_left = true }
-            (Some(KeyCode::Q), ButtonState::Released) => { controls.rotate_left = false }
-            (Some(KeyCode::E), ButtonState::Pressed) => { controls.rotate_right = true }
-            (Some(KeyCode::E), ButtonState::Released) => { controls.rotate_right = false }
             (_, _) => {}
         }
     }
 }
 
-fn apply_controls(
+fn apply_movement_from_controls(
     time: Res<Time>,
-    mut query: Query<(&mut Velocity, &Controls, &Transform)>,
+    mut query: Query<(&Controls, &mut Transform)>,
 ) {
-    let (mut velocity, controls, transform) = query.single_mut();
+    let (controls, mut transform) = query.single_mut();
 
-    let linear_acceleration = time.delta_seconds() * 4.;
-    let angular_acceleration = time.delta_seconds() * 2.;
+    let mut rotation = 0.;
+    if controls.left { rotation += PI / 4. }
+    if controls.right { rotation -= PI / 4. }
 
-    let forward_acceleration = linear_acceleration * transform.forward();
-    let backward_acceleration = -linear_acceleration * transform.forward();
-    let left_acceleration = Quat::from_rotation_y(PI / 2.) * forward_acceleration;
-    let right_acceleration = Quat::from_rotation_y(-PI / 2.) * forward_acceleration;
-    let yaw_acceleration = Vec3::new(0., angular_acceleration, 0.);
+    let mut velocity = Vec3::ZERO;
+    if controls.forward { velocity += transform.forward() }
+    if controls.backward { velocity -= transform.forward() }
 
-    if controls.forward { velocity.linvel += forward_acceleration }
-    if controls.backward { velocity.linvel += backward_acceleration }
-    if controls.left { velocity.linvel += left_acceleration }
-    if controls.right { velocity.linvel += right_acceleration }
-    if !controls.forward && !controls.backward && !controls.left && !controls.right && velocity.linvel.length() > 0. {
-        let deceleration = linear_acceleration * velocity.linvel.normalize();
-        velocity.linvel -= deceleration
+    if velocity.length() > 0. {
+        transform.rotate(Quat::from_rotation_y(rotation * time.delta_seconds()));
     }
-    if controls.rotate_left { velocity.angvel += yaw_acceleration }
-    if controls.rotate_right { velocity.angvel -= yaw_acceleration }
-    if !controls.rotate_left && !controls.rotate_right {
-        let sign = velocity.angvel.y.signum();
-        velocity.angvel -= sign * yaw_acceleration
-    }
+    transform.translation += 2. * time.delta_seconds() * velocity;
 }
