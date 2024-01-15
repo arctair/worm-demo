@@ -1,14 +1,14 @@
 use std::f32::consts::PI;
 use bevy::app::{App, Startup, Update};
-use bevy::asset::Assets;
+use bevy::asset::{Assets, Handle};
 use bevy::DefaultPlugins;
 use bevy::hierarchy::BuildChildren;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::math::{Quat, Vec3};
 use bevy::pbr::{CascadeShadowConfigBuilder, DirectionalLightBundle, PbrBundle, StandardMaterial};
-use bevy::prelude::{Camera3dBundle, Color, Commands, Component, DirectionalLight, EventReader, KeyCode, Mesh, Query, Res, ResMut, SpatialBundle, Transform};
-use bevy::prelude::shape::{Icosphere, Plane};
+use bevy::prelude::{Camera3dBundle, Color, Commands, Component, DirectionalLight, Entity, EventReader, KeyCode, Mesh, Query, Res, ResMut, SpatialBundle, Transform};
+use bevy::prelude::shape::{Icosphere};
 use bevy::time::Time;
 use bevy::utils::default;
 
@@ -16,23 +16,14 @@ use bevy::utils::default;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_systems(Startup, startup)
+        .add_systems(Startup, (startup, startup_worm))
         .add_systems(Update, (set_controls, apply_movement_from_controls))
+        .add_systems(Update, worm_node_system)
         .run();
-}
-
-#[derive(Component, Default)]
-struct Controls {
-    forward: bool,
-    backward: bool,
-    left: bool,
-    right: bool,
 }
 
 fn startup(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
@@ -52,25 +43,50 @@ fn startup(
             .into(),
         ..default()
     });
+}
 
-    commands.spawn(PbrBundle {
-        mesh: meshes.add(Plane::default().into()).into(),
-        material: materials.add(Color::WHITE.into()),
-        transform: Transform::default().with_scale(Vec3::splat(8.)),
-        ..default()
-    });
+#[derive(Component, Default)]
+struct Controls {
+    forward: bool,
+    left: bool,
+    right: bool,
+}
+
+#[derive(Component)]
+struct Handles {
+    mesh: Handle<Mesh>,
+    material: Handle<StandardMaterial>,
+}
+
+#[derive(Component, Default)]
+struct WormBody {
+    nodes: Vec<Entity>,
+}
+
+fn startup_worm(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let mesh = meshes.add(Mesh::try_from(Icosphere { radius: 0.25, subdivisions: 2 }).unwrap());
+    let material = materials.add(Color::BEIGE.into());
 
     commands.spawn_empty()
         .insert(Controls::default())
         .insert(SpatialBundle::default())
+        .insert(Handles {
+            mesh: mesh.clone(),
+            material: material.clone(),
+        })
+        .insert(WormBody::default())
         .with_children(|parent| {
             parent.spawn(PbrBundle {
-                mesh: meshes.add(Mesh::try_from(Icosphere { radius: 0.25, subdivisions: 2 }).unwrap()),
-                material: materials.add(Color::BEIGE.into()),
+                mesh: mesh.clone(),
+                material: material.clone(),
                 ..default()
             });
             parent.spawn(Camera3dBundle {
-                transform: Transform::from_xyz(0., 2., 4.).looking_at(Vec3::new(0., 0., -4.), Vec3::Y),
+                transform: Transform::from_xyz(0., 16., 1.).looking_at(Vec3::new(0., 0., 1.), Vec3::NEG_Z),
                 ..default()
             });
         });
@@ -86,8 +102,6 @@ fn set_controls(
         match (key_event.key_code, key_event.state) {
             (Some(KeyCode::W), ButtonState::Pressed) => { controls.forward = true }
             (Some(KeyCode::W), ButtonState::Released) => { controls.forward = false }
-            (Some(KeyCode::S), ButtonState::Pressed) => { controls.backward = true }
-            (Some(KeyCode::S), ButtonState::Released) => { controls.backward = false }
             (Some(KeyCode::A), ButtonState::Pressed) => { controls.left = true }
             (Some(KeyCode::A), ButtonState::Released) => { controls.left = false }
             (Some(KeyCode::D), ButtonState::Pressed) => { controls.right = true }
@@ -107,12 +121,50 @@ fn apply_movement_from_controls(
     if controls.left { rotation += PI / 4. }
     if controls.right { rotation -= PI / 4. }
 
-    let mut velocity = Vec3::ZERO;
-    if controls.forward { velocity += transform.forward() }
-    if controls.backward { velocity -= transform.forward() }
-
-    if velocity.length() > 0. {
+    if controls.forward {
         transform.rotate(Quat::from_rotation_y(rotation * time.delta_seconds()));
+
+        let velocity = 2. * transform.forward();
+        transform.translation += velocity * time.delta_seconds();
     }
-    transform.translation += 2. * time.delta_seconds() * velocity;
 }
+
+fn worm_node_system(
+    mut commands: Commands,
+    mut query: Query<(&Handles, &Transform, &mut WormBody)>,
+    node_query: Query<&Transform>,
+) {
+    let distance_between = 0.25;
+    let max_count = 16;
+    let (handles, transform, mut nodes) = query.single_mut();
+
+    match nodes.nodes.last() {
+        None => {
+            let bundle = PbrBundle {
+                mesh: handles.mesh.clone(),
+                material: handles.material.clone(),
+                transform: transform.clone(),
+                ..default()
+            };
+            nodes.nodes.push(commands.spawn(bundle).id());
+        }
+        Some(last_node) => {
+            let last_node_translation = node_query.get(*last_node).unwrap().translation;
+            if transform.translation.distance(last_node_translation) >= distance_between {
+                let delta = distance_between * (transform.translation - last_node_translation).normalize();
+                let bundle = PbrBundle {
+                    mesh: handles.mesh.clone(),
+                    material: handles.material.clone(),
+                    transform: Transform::from_translation(last_node_translation + delta),
+                    ..default()
+                };
+                nodes.nodes.push(commands.spawn(bundle).id());
+            }
+        }
+    }
+
+    while nodes.nodes.len() > max_count {
+        commands.entity(nodes.nodes.remove(0)).despawn()
+    }
+}
+
