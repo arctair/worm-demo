@@ -52,14 +52,10 @@ struct Controls {
     right: bool,
 }
 
-#[derive(Component)]
-struct Handles {
-    mesh: Handle<Mesh>,
-    material: Handle<StandardMaterial>,
-}
-
 #[derive(Component, Default)]
 struct WormBody {
+    mesh: Handle<Mesh>,
+    material: Handle<StandardMaterial>,
     translation: Option<Vec3>,
     nodes: Vec<Entity>,
 }
@@ -75,11 +71,11 @@ fn startup_worm(
     commands.spawn_empty()
         .insert(Controls::default())
         .insert(SpatialBundle::default())
-        .insert(Handles {
+        .insert(WormBody {
             mesh: mesh.clone(),
             material: material.clone(),
+            ..default()
         })
-        .insert(WormBody::default())
         .with_children(|parent| {
             parent.spawn(PbrBundle {
                 mesh: mesh.clone(),
@@ -132,42 +128,42 @@ fn apply_movement_from_controls(
 
 fn worm_node_system(
     mut commands: Commands,
-    mut query: Query<(&Handles, &Transform, &mut WormBody)>,
+    mut query: Query<(&Transform, &mut WormBody)>,
 ) {
     let distance_between = 0.25;
     let max_count = 16;
-    let (handles, transform, mut nodes) = query.single_mut();
+    let (transform, mut body) = query.single_mut();
 
-    match nodes.translation {
+    match body.translation {
         None => {
-            nodes.translation = Some(transform.translation);
+            body.translation = Some(transform.translation);
 
             let bundle = PbrBundle {
-                mesh: handles.mesh.clone(),
-                material: handles.material.clone(),
+                mesh: body.mesh.clone(),
+                material: body.material.clone(),
                 transform: transform.clone(),
                 ..default()
             };
-            nodes.nodes.push(commands.spawn(bundle).id());
+            body.nodes.push(commands.spawn(bundle).id());
         }
         Some(translation) => {
             if transform.translation.distance(translation) >= distance_between {
                 let new_translation = translation + distance_between * (transform.translation - translation).normalize();
-                nodes.translation = Some(new_translation);
+                body.translation = Some(new_translation);
 
                 let bundle = PbrBundle {
-                    mesh: handles.mesh.clone(),
-                    material: handles.material.clone(),
+                    mesh: body.mesh.clone(),
+                    material: body.material.clone(),
                     transform: Transform::from_translation(new_translation),
                     ..default()
                 };
-                nodes.nodes.push(commands.spawn(bundle).id());
+                body.nodes.push(commands.spawn(bundle).id());
             }
         }
     }
 
-    while nodes.nodes.len() > max_count {
-        commands.entity(nodes.nodes.remove(0)).despawn()
+    while body.nodes.len() > max_count {
+        commands.entity(body.nodes.remove(0)).despawn()
     }
 }
 
