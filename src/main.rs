@@ -100,7 +100,6 @@ fn startup_worm(
             transform: Transform::from_rotation(Quat::from_rotation_y(PI)),
             ..default()
         })
-        .insert(body)
         .with_children(|parent| {
             parent.spawn(PbrBundle {
                 mesh: mesh.clone(),
@@ -111,7 +110,8 @@ fn startup_worm(
                 transform: Transform::from_xyz(0., 16., 1.).looking_at(Vec3::new(0., 0., 1.), Vec3::NEG_Z),
                 ..default()
             });
-        });
+        })
+        .insert(body);
 }
 
 fn set_controls(
