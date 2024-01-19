@@ -1,25 +1,24 @@
+use bevy::prelude::*;
+use bevy_rapier3d::prelude::*;
+
 use std::f32::consts::PI;
 use bevy::app::{App, Startup, Update};
-use bevy::asset::{Assets, Handle};
 use bevy::DefaultPlugins;
-use bevy::ecs::system::EntityCommands;
-use bevy::hierarchy::{BuildChildren};
+use bevy::ecs::bundle::DynamicBundle;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::math::{Quat, Vec3};
-use bevy::pbr::{CascadeShadowConfigBuilder, DirectionalLightBundle, PbrBundle, StandardMaterial};
-use bevy::prelude::{Camera3dBundle, Color, Commands, Component, DirectionalLight, Entity, EventReader, KeyCode, Mesh, Query, Res, ResMut, SpatialBundle, Transform, With};
-use bevy::prelude::shape::{Icosphere};
-use bevy::time::Time;
+use bevy::pbr::{CascadeShadowConfigBuilder, DirectionalLightBundle};
+use bevy::prelude::{Camera3dBundle, Commands, Component, DirectionalLight, EventReader, KeyCode, Query, Transform};
 use bevy::utils::default;
-
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_systems(Startup, (startup, startup_worm))
+        .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
+        .add_plugins(RapierDebugRenderPlugin::default())
+        .add_systems(Startup, (startup, startup_soil, startup_worm))
         .add_systems(Update, (set_controls, apply_movement_from_controls))
-        .add_systems(Update, worm_node_system)
         .run();
 }
 
@@ -46,34 +45,44 @@ fn startup(
     });
 }
 
+fn startup_soil(mut commands: Commands) {
+    commands.spawn_batch(spawn_stones(256))
+}
+
+fn spawn_stones(count: usize) -> Vec<StoneBundle> {
+    let p1 = 0.7548776662466927;
+    let p2 = 0.5698402909980532;
+    (0..count).into_iter()
+        .map(|index| { Vec3::new((p1 * index as f32) % 1. - 0.5, 0., (p2 * index as f32) % 1. - 0.5) })
+        .map(|normal| {
+            StoneBundle {
+                rigid_body: RigidBody::Fixed,
+                collider: Collider::ball(0.25),
+                transform_bundle: TransformBundle::from_transform(Transform::from_translation(64. * normal)),
+                friction: Friction::new(0.),
+                gravity_scale: GravityScale(0.),
+            }
+        })
+        .collect()
+}
+
+#[derive(Bundle)]
+struct StoneBundle {
+    rigid_body: RigidBody,
+    collider: Collider,
+    transform_bundle: TransformBundle,
+    friction: Friction,
+    gravity_scale: GravityScale,
+}
+
 #[derive(Component, Default)]
 struct Controls {
+    scale: f32,
+    segment_count: usize,
     forward: bool,
+    back: bool,
     left: bool,
     right: bool,
-}
-
-#[derive(Component, Default)]
-struct WormBody {
-    mesh: Handle<Mesh>,
-    material: Handle<StandardMaterial>,
-    translation: Option<Vec3>,
-    nodes: Vec<Entity>,
-}
-
-impl WormBody {
-    fn append_node(&mut self, mut entity_commands: EntityCommands, translation: Vec3) {
-        self.translation = Some(translation);
-
-        let bundle = PbrBundle {
-            mesh: self.mesh.clone(),
-            material: self.material.clone(),
-            transform: Transform::from_translation(translation),
-            ..default()
-        };
-
-        self.nodes.push(entity_commands.insert(bundle).id());
-    }
 }
 
 fn startup_worm(
@@ -81,38 +90,47 @@ fn startup_worm(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let mesh = meshes.add(Mesh::try_from(Icosphere { radius: 0.25, subdivisions: 2 }).unwrap());
-    let material = materials.add(Color::BEIGE.into());
-
-    let camera = commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(0., 16., 1.).looking_at(Vec3::new(0., 0., 1.), Vec3::NEG_Z),
-        ..default()
-    }).id();
-
-    let head = commands.spawn_empty()
-        .insert(Controls::default())
-        .insert(PbrBundle {
-            mesh: mesh.clone(),
-            material: material.clone(),
-            transform: Transform::from_rotation(Quat::from_rotation_y(PI)),
-            ..default()
-        })
-        .add_child(camera)
+    let scale = 1.;
+    let segments: usize = 8;
+    let transform = Transform::default();
+    let mut tail = commands
+        .spawn(RigidBody::Dynamic)
+        .insert(TransformBundle::from_transform(transform))
+        .insert(LockedAxes::TRANSLATION_LOCKED_Y | LockedAxes::ROTATION_LOCKED_X | LockedAxes::ROTATION_LOCKED_Z)
+        .insert(ExternalForce::default())
+        .insert(Controls { scale, segment_count: segments, ..default() })
+        .insert(Collider::ball(scale))
+        .insert(Damping { linear_damping: scale * scale, angular_damping: scale * scale })
         .id();
 
-    let mut body = WormBody {
-        mesh: mesh.clone(),
-        material: material.clone(),
+    let camera = Camera3dBundle {
+        transform: Transform::from_xyz(0., 1., 0.).looking_at(Vec3::new(0., 0., 0.), Vec3::NEG_Z),
         ..default()
     };
 
-    for index in -16..0 {
-        body.append_node(commands.spawn_empty(), Vec3::new(0., 0., 0.25 * index as f32));
-    }
+    let camera_joint = RevoluteJointBuilder::new(Vec3::Y)
+        .local_anchor1(Vec3::new(0., segments as f32 * scale, 0.));
 
-    commands.spawn(SpatialBundle::default())
-        .add_child(head)
-        .insert(body);
+    commands.spawn(RigidBody::Dynamic)
+        .insert(TransformBundle::from_transform(Transform::from_xyz(0., segments as f32 * scale, 0.)))
+        .insert(LockedAxes::ROTATION_LOCKED)
+        .insert(ImpulseJoint::new(tail, camera_joint))
+        .insert(AdditionalMassProperties::Mass(0.00001))
+        .with_children(|parent| { parent.spawn(camera); });
+
+    for index in 0..segments {
+        let joint = RevoluteJointBuilder::new(Vec3::Y)
+            .local_anchor1(Vec3::new(0., 0., scale))
+            .local_anchor2(Vec3::new(0., 0., -scale));
+
+        tail = commands.spawn(RigidBody::Dynamic)
+            .insert(TransformBundle::from_transform(Transform::from_translation(scale * 2. * (index + 1) as f32 * transform.back())))
+            .insert(GravityScale(0.))
+            .insert(Damping { linear_damping: scale * scale, angular_damping: scale })
+            .insert(Collider::ball(scale))
+            .insert(ImpulseJoint::new(tail, joint))
+            .id();
+    }
 }
 
 fn set_controls(
@@ -127,6 +145,8 @@ fn set_controls(
             (Some(KeyCode::W), ButtonState::Released) => { controls.forward = false }
             (Some(KeyCode::A), ButtonState::Pressed) => { controls.left = true }
             (Some(KeyCode::A), ButtonState::Released) => { controls.left = false }
+            (Some(KeyCode::S), ButtonState::Pressed) => { controls.back = true }
+            (Some(KeyCode::S), ButtonState::Released) => { controls.back = false }
             (Some(KeyCode::D), ButtonState::Pressed) => { controls.right = true }
             (Some(KeyCode::D), ButtonState::Released) => { controls.right = false }
             (_, _) => {}
@@ -135,44 +155,17 @@ fn set_controls(
 }
 
 fn apply_movement_from_controls(
-    time: Res<Time>,
-    mut query: Query<(&Controls, &mut Transform)>,
+    mut query: Query<(&Controls, &Transform, &mut ExternalForce)>,
 ) {
-    let (controls, mut transform) = query.single_mut();
+    let (controls, transform, mut external_force) = query.single_mut();
 
     let mut rotation = 0.;
-    if controls.left { rotation += PI / 4. }
-    if controls.right { rotation -= PI / 4. }
+    if controls.left { rotation += 32. }
+    if controls.right { rotation -= 32. }
+    external_force.torque = Vec3::new(0., rotation, 0.);
 
-    if controls.forward {
-        transform.rotate(Quat::from_rotation_y(rotation * time.delta_seconds()));
-
-        let velocity = 2. * transform.forward();
-        transform.translation += velocity * time.delta_seconds();
-    }
+    let mut force = Vec3::ZERO;
+    if controls.forward { force += 256. * transform.forward() };
+    if controls.back { force += 256. * transform.back() };
+    external_force.force = force;
 }
-
-fn worm_node_system(
-    mut commands: Commands,
-    head_query: Query<&Transform, With<Controls>>,
-    mut body_query: Query<&mut WormBody>,
-) {
-    let distance_between = 0.25;
-    let max_count = 16;
-
-    let transform = head_query.single();
-    let mut body = body_query.single_mut();
-
-    match body.translation {
-        None =>
-            body.append_node(commands.spawn_empty(), transform.translation),
-        Some(translation) if transform.translation.distance(translation) >= distance_between =>
-            body.append_node(commands.spawn_empty(), translation + distance_between * (transform.translation - translation).normalize()),
-        Some(_) => {}
-    }
-
-    while body.nodes.len() > max_count {
-        commands.entity(body.nodes.remove(0)).despawn()
-    }
-}
-
