@@ -164,17 +164,9 @@ fn debug_intersection(
 ) {
     for (hunk_vertices, hunk_transform) in hunk_query.iter() {
         let hunk_vertices = hunk_vertices.vertices(hunk_transform);
-        for vertex in &hunk_vertices {
-            let translation = Vec3::new(vertex.x, vertex.y, 0.);
-            gizmos.circle(translation, Vec3::ZERO, 0.125, Color::YELLOW);
-        }
 
         let (worm_vertices, worm_transform) = worm_query.single();
         let worm_vertices = worm_vertices.vertices(worm_transform);
-        for vertex in &worm_vertices {
-            let translation = Vec3::new(vertex.x, vertex.y, 0.);
-            gizmos.circle(translation, Vec3::ZERO, 0.125, Color::CYAN);
-        }
 
         let intersect_vertices: &mut Vec<Point2<Real>> = &mut vec![];
         convex_polygons_intersection_points(&worm_vertices, &hunk_vertices, intersect_vertices);
