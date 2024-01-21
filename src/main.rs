@@ -10,9 +10,6 @@ use bevy::transform::TransformBundle;
 use bevy::utils::default;
 use bevy_rapier2d::dynamics::{Damping, ExternalForce, GravityScale, RigidBody};
 use bevy_rapier2d::geometry::{Collider, CollisionGroups, Group};
-use bevy_rapier2d::na::Point2;
-use bevy_rapier2d::parry::math::Real;
-use bevy_rapier2d::parry::transformation::convex_polygons_intersection_points;
 use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
 use bevy_rapier2d::render::RapierDebugRenderPlugin;
 use geometry::Geometry;
@@ -28,7 +25,7 @@ fn main() {
         .add_plugins(RapierDebugRenderPlugin::default())
         .add_systems(Startup, startup)
         .add_systems(Update, controls)
-        .add_systems(Update, debug_intersection)
+        .add_systems(Update, debug_subtraction)
         .run();
 }
 
@@ -157,20 +154,15 @@ fn controls(
     external_force.force = 4. * force.normalize_or_zero();
 }
 
-fn debug_intersection(
-    worm_query: Query<(&Geometry, &Transform), With<Controls>>,
-    hunk_query: Query<(&Geometry, &Transform), With<Hunk>>,
+fn debug_subtraction(
+    worm_query: Query<(&Transform, &Geometry), With<Controls>>,
+    hunk_query: Query<(&Transform, &Geometry), With<Hunk>>,
     mut gizmos: Gizmos,
 ) {
-    for (hunk_vertices, hunk_transform) in hunk_query.iter() {
-        let hunk_vertices = hunk_vertices.vertices(hunk_transform);
-
-        let (worm_vertices, worm_transform) = worm_query.single();
-        let worm_vertices = worm_vertices.vertices(worm_transform);
-
-        let intersect_vertices: &mut Vec<Point2<Real>> = &mut vec![];
-        convex_polygons_intersection_points(&worm_vertices, &hunk_vertices, intersect_vertices);
-        for vertex in intersect_vertices {
+    for hunk in hunk_query.iter() {
+        let worm = worm_query.single();
+        let subtraction = Geometry::subtract(hunk, worm);
+        for vertex in subtraction {
             let translation = Vec3::new(vertex.x, vertex.y, 0.);
             gizmos.circle(translation, Vec3::ZERO, 0.25, Color::RED);
         }
