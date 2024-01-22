@@ -9,12 +9,12 @@ use itertools::Itertools;
 
 #[derive(Component)]
 pub struct Geometry {
-    local_vertices: Vec<Vec2>,
+    polygon: Vec<Vec2>,
 }
 
 impl Geometry {
-    pub fn new(local_vertices: Vec<Vec2>) -> Geometry {
-        Geometry { local_vertices }
+    pub fn new(polygon: Vec<Vec2>) -> Geometry {
+        Geometry { polygon }
     }
 
     pub fn subtract((t0, g0): (&Transform, &Geometry), (t1, g1): (&Transform, &Geometry)) -> Vec<Vec2> {
@@ -102,7 +102,7 @@ impl Geometry {
     }
 
     fn vertices(&self, transform: &Transform) -> Vec<Point2<Real>> {
-        self.local_vertices.iter().map(|local_point_vec2| {
+        self.polygon.iter().map(|local_point_vec2| {
             let local_point_vec3 = Vec3::new(local_point_vec2.x, local_point_vec2.y, 0.);
             let global_point_vec3 = transform.transform_point(local_point_vec3);
             Point2::new(global_point_vec3.x, global_point_vec3.y)
@@ -127,13 +127,13 @@ mod tests {
 
     #[test]
     fn test_non_intersecting_triangles() {
-        let left_vertices = vec![
+        let left_polygon = vec![
             Vec2::new(0., 0.),
             Vec2::new(0., 1.),
             Vec2::new(1., 0.),
         ];
         let actual = Geometry::subtract(
-            (&Transform::default(), &Geometry::new(left_vertices.clone())),
+            (&Transform::default(), &Geometry::new(left_polygon.clone())),
             (&Transform::default(), &Geometry::new(vec![
                 Vec2::new(2., 0.),
                 Vec2::new(2., 1.),
@@ -141,7 +141,7 @@ mod tests {
             ])),
         );
 
-        assert_eq!(actual, left_vertices);
+        assert_eq!(actual, left_polygon);
     }
 
     #[test]
@@ -222,14 +222,14 @@ mod tests {
 
     #[test]
     fn test_corner_vertex_intersection() {
-        let left_vertices = vec![
+        let left_polygon = vec![
             Vec2::new(0., -2.3841858e-7),
             Vec2::new(0., -8.),
             Vec2::new(-8., -8.),
             Vec2::new(-8., 0.),
         ];
         let actual = Geometry::subtract(
-            (&Transform::default(), &Geometry::new(left_vertices.clone())),
+            (&Transform::default(), &Geometry::new(left_polygon.clone())),
             (&Transform::default(), &Geometry::new(vec![
                 Vec2::new(3.4641018, 6.),
                 Vec2::new(0., 0.),
@@ -237,6 +237,6 @@ mod tests {
             ])),
         );
 
-        assert_eq!(actual, left_vertices);
+        assert_eq!(actual, left_polygon);
     }
 }
