@@ -29,6 +29,10 @@ impl Geometry {
             return Geometry::perry2bevy(left);
         }
 
+        if left.len() == intersection.len() && left.iter().zip(intersection.iter()).all(|pair| pair.0 == pair.1) {
+            return Geometry::perry2bevy(left);
+        }
+
         let mut starting_index: usize = 0;
         for vertex in &left {
             if intersection.contains(vertex) {
@@ -214,5 +218,25 @@ mod tests {
         ];
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_corner_vertex_intersection() {
+        let left_vertices = vec![
+            Vec2::new(0., -2.3841858e-7),
+            Vec2::new(0., -8.),
+            Vec2::new(-8., -8.),
+            Vec2::new(-8., 0.),
+        ];
+        let actual = Geometry::subtract(
+            (&Transform::default(), &Geometry::new(left_vertices.clone())),
+            (&Transform::default(), &Geometry::new(vec![
+                Vec2::new(3.4641018, 6.),
+                Vec2::new(0., 0.),
+                Vec2::new(-3.4641018, 6.),
+            ])),
+        );
+
+        assert_eq!(actual, left_vertices);
     }
 }
