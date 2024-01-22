@@ -160,8 +160,8 @@ fn debug_subtraction(
     hunk_query: Query<(&Transform, &Geometry), With<Hunk>>,
     mut gizmos: Gizmos,
 ) {
+    let worm = worm_query.single();
     for hunk in hunk_query.iter() {
-        let worm = worm_query.single();
         let subtraction = Geometry::subtract(hunk, worm);
         gizmos.linestrip_2d(subtraction.clone().into_iter().chain(iter::once(subtraction[0])), Color::YELLOW);
     }
