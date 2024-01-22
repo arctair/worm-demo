@@ -5,9 +5,8 @@ use bevy::DefaultPlugins;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{Bundle, Camera2dBundle, Color, Commands, Component, EventReader, Gizmos, KeyCode, OrthographicProjection, Query, Res, Transform, With};
+use bevy::prelude::{Bundle, Camera2dBundle, Color, Commands, Component, EventReader, Gizmos, KeyCode, OrthographicProjection, Query, Transform, With};
 use bevy::prelude::shape::RegularPolygon;
-use bevy::time::Time;
 use bevy::transform::TransformBundle;
 use bevy::utils::default;
 use bevy_rapier2d::dynamics::{Damping, ExternalForce, GravityScale, RigidBody};
@@ -157,7 +156,6 @@ fn controls(
 }
 
 fn debug_subtraction(
-    time: Res<Time>,
     worm_query: Query<(&Transform, &Geometry), With<Controls>>,
     hunk_query: Query<(&Transform, &Geometry), With<Hunk>>,
     mut gizmos: Gizmos,
@@ -166,9 +164,5 @@ fn debug_subtraction(
         let worm = worm_query.single();
         let subtraction = Geometry::subtract(hunk, worm);
         gizmos.linestrip_2d(subtraction.clone().into_iter().chain(iter::once(subtraction[0])), Color::YELLOW);
-
-        let vertex = subtraction[(8. * time.elapsed_seconds()) as usize % subtraction.len()];
-        let translation = Vec3::new(vertex.x, vertex.y, 0.);
-        gizmos.circle(translation, Vec3::ZERO, 0.25, Color::GREEN);
     }
 }
