@@ -14,7 +14,6 @@ use bevy_rapier2d::dynamics::{Damping, ExternalForce, GravityScale, RigidBody};
 use bevy_rapier2d::geometry::{Collider, CollisionGroups, Group};
 use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
 use bevy_rapier2d::render::RapierDebugRenderPlugin;
-use itertools::Itertools;
 use geometry::Geometry;
 use crate::regular_polygon::Vertices;
 

@@ -29,7 +29,14 @@ impl Geometry {
             return Geometry::perry2bevy(left);
         }
 
-        let starting_index: usize = 0;
+        let mut starting_index: usize = 0;
+        for vertex in &left {
+            if intersection.contains(vertex) {
+                starting_index += 1
+            } else {
+                break
+            }
+        }
         left.push(left[0]);
         intersection.push(intersection[0]);
 
@@ -180,6 +187,30 @@ mod tests {
             Vec2::new(3., 2.),
             Vec2::new(4., 2.),
             Vec2::new(4., 0.),
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_subtract_starting_vertex() {
+        let actual = Geometry::subtract(
+            (&Transform::default(), &Geometry::new(vec![
+                Vec2::new(0., 2.),
+                Vec2::new(2., 0.),
+                Vec2::new(0., 0.),
+            ])),
+            (&Transform::default(), &Geometry::new(vec![
+                Vec2::new(0., 2.),
+                Vec2::new(1., 1.),
+                Vec2::new(0., 1.),
+            ])),
+        );
+        let expected = vec![
+            Vec2::new(2., 0.),
+            Vec2::new(0., 0.),
+            Vec2::new(0., 1.),
+            Vec2::new(1., 1.),
         ];
 
         assert_eq!(actual, expected);
