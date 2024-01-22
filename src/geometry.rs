@@ -26,11 +26,11 @@ impl Geometry {
         convex_polygons_intersection_points(&left, &right, intersection);
 
         if intersection.is_empty() {
-            return Geometry::perry2bevy(left);
+            return Geometry::perry2bevy(left, t0);
         }
 
         if left.len() == intersection.len() && left.iter().zip(intersection.iter()).all(|pair| pair.0 == pair.1) {
-            return Geometry::perry2bevy(left);
+            return Geometry::perry2bevy(left, t0);
         }
 
         let mut starting_index: usize = 0;
@@ -38,7 +38,7 @@ impl Geometry {
             if intersection.contains(vertex) {
                 starting_index += 1
             } else {
-                break
+                break;
             }
         }
         left.push(left[0]);
@@ -94,24 +94,34 @@ impl Geometry {
             }
         }
 
-        return Geometry::perry2bevy(result);
+        return Geometry::perry2bevy(result, t0);
     }
 
-    fn perry2bevy(perry: Vec<Point2<Real>>) -> Vec<Vec2> {
-        perry.iter().map(|p| Vec2::new(p.x, p.y)).collect()
+    fn perry2bevy(perry: Vec<Point2<Real>>, transform: &Transform) -> Vec<Vec2> {
+        perry.iter().map(|p2| {
+            let mut p3 = Vec3::new(p2.x, p2.y, 0.);
+            p3 -= transform.translation;
+            p3 = transform.rotation.inverse() * p3;
+            p3 /= transform.scale;
+            Vec2::new(p3.x, p3.y)
+        }).collect()
     }
 
     fn vertices(&self, transform: &Transform) -> Vec<Point2<Real>> {
-        self.polygon.iter().map(|local_point_vec2| {
-            let local_point_vec3 = Vec3::new(local_point_vec2.x, local_point_vec2.y, 0.);
-            let global_point_vec3 = transform.transform_point(local_point_vec3);
-            Point2::new(global_point_vec3.x, global_point_vec3.y)
+        self.polygon.iter().map(|p2| {
+            let mut p3 = Vec3::new(p2.x, p2.y, 0.);
+            p3 *= transform.scale;
+            p3 = transform.rotation * p3;
+            p3 += transform.translation;
+            Point2::new(p3.x, p3.y)
         }).collect()
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::f32::consts::PI;
+    use bevy::prelude::Quat;
     use super::*;
 
     #[test]
@@ -163,6 +173,37 @@ mod tests {
             Vec2::new(0., 2.),
             Vec2::new(1., 1.),
             Vec2::new(1., 0.),
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_left_transform() {
+        let actual = Geometry::subtract(
+            (
+                &Transform::default()
+                    .with_scale(Vec3::splat(0.5))
+                    .with_translation(Vec3::new(1., 1., 0.))
+                    .with_rotation(Quat::from_rotation_z(PI / 2.))
+                ,
+                &Geometry::new(vec![
+                    Vec2::new(-2., 2.),
+                    Vec2::new(2., 2.),
+                    Vec2::new(-2., -2.),
+                ])
+            ),
+            (&Transform::default(), &Geometry::new(vec![
+                Vec2::new(1., 0.),
+                Vec2::new(1., 2.),
+                Vec2::new(3., 0.),
+            ])),
+        );
+        let expected = vec![
+            Vec2::new(-1.9999998, 1.9999998),
+            Vec2::new(1.9999999, 1.9999998),
+            Vec2::new(0.0, 0.0),
+            Vec2::new(-1.9999998, 0.0),
         ];
 
         assert_eq!(actual, expected);
