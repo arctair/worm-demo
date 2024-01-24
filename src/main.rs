@@ -10,11 +10,11 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(1.))
         .add_plugins(RapierDebugRenderPlugin::default())
-        .add_systems(Startup, startup)
+        .add_systems(Startup, startup_camera)
         .run();
 }
 
-fn startup(mut commands: Commands) {
+fn startup_camera(mut commands: Commands) {
     commands.spawn(Camera2dBundle {
         projection: OrthographicProjection {
             scale: 1.,
