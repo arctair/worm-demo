@@ -1,4 +1,5 @@
 use bevy::app::{App, Startup, Update};
+use bevy::core::Zeroable;
 use bevy::DefaultPlugins;
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{Camera, Camera2dBundle, Color, Commands, Component, Entity, Gizmos, GlobalTransform, OrthographicProjection, Query, Transform, TransformBundle, With};
@@ -7,6 +8,7 @@ use bevy::window::{PrimaryWindow, Window};
 use bevy_rapier2d::dynamics::RigidBody;
 use bevy_rapier2d::geometry::Collider;
 use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
+use bevy_rapier2d::prelude::{Damping, GravityScale, Velocity};
 use bevy_rapier2d::render::RapierDebugRenderPlugin;
 
 fn main() {
@@ -72,9 +74,12 @@ impl From<Vec<Vec2>> for Polyline {
 }
 
 fn startup_player(mut commands: Commands) {
-    commands.spawn(RigidBody::Fixed)
-        .insert(TransformBundle::default())
-        .insert(Collider::ball(1. / 4.))
+    commands.spawn(RigidBody::Dynamic)
+        .insert(TransformBundle::from_transform(Transform::from_xyz(0., 4., 0.)))
+        .insert(GravityScale(0.))
+        .insert(Velocity::default())
+        .insert(Collider::ball(1.))
+        .insert(Damping { linear_damping: 0., angular_damping: 1. })
         .insert(Player);
 }
 
@@ -83,16 +88,20 @@ struct Player;
 
 fn update_player(
     camera_query: Query<(&Camera, &GlobalTransform)>,
-    mut player_query: Query<&mut Transform, With<Player>>,
+    mut player_query: Query<(&mut Velocity, &Transform), With<Player>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
     let (camera, transform) = camera_query.single();
     let point = window_query.single().cursor_position()
         .and_then(|position| camera.viewport_to_world(transform, position))
         .map(|ray| ray.origin.truncate());
-    if let Some(point) = point {
-        let mut transform = player_query.single_mut();
-        transform.translation = Vec3::new(point.x, point.y, 0.);
+    let (mut velocity, transform) = player_query.single_mut();
+
+    velocity.linvel = match point {
+        Some(point)  if point.distance(transform.translation.truncate()) > 1. => {
+            4. * transform.looking_at(point.extend(0.), Vec3::Y).forward().truncate()
+        }
+        _ => Vec2::zeroed()
     }
 }
 
@@ -101,18 +110,20 @@ fn nudge_vertices(
     mut polyline_query: Query<(Entity, &mut Polyline)>,
     player_query: Query<&Transform, With<Player>>,
 ) {
+    let distance_at_least = 1. + 1. / 8. + 1. / 8.;
+
     let transform = player_query.single();
     let (entity, mut polyline) = polyline_query.single_mut();
 
     let mut new_version = polyline.version;
     let new_points = polyline.points.iter().map(|point| {
         let distance = point.distance(transform.translation.truncate());
-        if distance >= 1. / 4. {
+        if distance >= distance_at_least {
             *point
         } else {
             new_version += 1;
             let direction = transform.looking_at(point.extend(0.), Vec3::Y).forward();
-            *point + (direction * (1. / 4. - distance)).truncate()
+            *point + (direction * (distance_at_least - distance)).truncate()
         }
     }).collect();
 
