@@ -1,8 +1,9 @@
 use bevy::app::{App, Startup, Update};
 use bevy::DefaultPlugins;
-use bevy::math::Vec2;
-use bevy::prelude::{Camera2dBundle, Color, Commands, Component, Gizmos, OrthographicProjection, Query};
+use bevy::math::{Vec2, Vec3};
+use bevy::prelude::{Camera, Camera2dBundle, Color, Commands, Component, Gizmos, GlobalTransform, OrthographicProjection, Query, Transform, TransformBundle, With};
 use bevy::utils::default;
+use bevy::window::{PrimaryWindow, Window};
 use bevy_rapier2d::dynamics::RigidBody;
 use bevy_rapier2d::geometry::Collider;
 use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
@@ -15,7 +16,9 @@ fn main() {
         .add_plugins(RapierDebugRenderPlugin::default())
         .add_systems(Startup, startup_camera)
         .add_systems(Startup, startup_polyline)
+        .add_systems(Startup, startup_player)
         .add_systems(Update, update)
+        .add_systems(Update, update_player)
         .run();
 }
 
@@ -65,6 +68,16 @@ impl From<Vec<Vec2>> for Polyline {
     }
 }
 
+fn startup_player(mut commands: Commands) {
+    commands.spawn(RigidBody::Fixed)
+        .insert(TransformBundle::default())
+        .insert(Collider::ball(1. / 4.))
+        .insert(Player);
+}
+
+#[derive(Component)]
+struct Player;
+
 fn update(
     query: Query<&Polyline>,
     mut gizmos: Gizmos,
@@ -73,5 +86,20 @@ fn update(
         for point in &polyline.points {
             gizmos.circle_2d(*point, 1. / 4., Color::MAROON);
         }
+    }
+}
+
+fn update_player(
+    camera_query: Query<(&Camera, &GlobalTransform)>,
+    mut player_query: Query<&mut Transform, With<Player>>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
+) {
+    let (camera, transform) = camera_query.single();
+    let point = window_query.single().cursor_position()
+        .and_then(|position| camera.viewport_to_world(transform, position))
+        .map(|ray| ray.origin.truncate());
+    if let Some(point) = point {
+        let mut transform = player_query.single_mut();
+        transform.translation = Vec3::new(point.x, point.y, 0.);
     }
 }
