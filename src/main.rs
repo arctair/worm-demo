@@ -64,7 +64,10 @@ impl Polyline {
 
 impl From<Vec<Vec2>> for Polyline {
     fn from(points: Vec<Vec2>) -> Self {
-        Polyline { points, version: 0 }
+        Polyline {
+            points,
+            version: 0,
+        }
     }
 }
 
@@ -94,11 +97,12 @@ fn update_player(
 }
 
 fn nudge_vertices(
-    mut polyline_query: Query<&mut Polyline>,
+    mut commands: Commands,
+    mut polyline_query: Query<(Entity, &mut Polyline)>,
     player_query: Query<&Transform, With<Player>>,
 ) {
     let transform = player_query.single();
-    let mut polyline = polyline_query.single_mut();
+    let (entity, mut polyline) = polyline_query.single_mut();
 
     let mut new_version = polyline.version;
     let new_points = polyline.points.iter().map(|point| {
@@ -115,6 +119,10 @@ fn nudge_vertices(
     if new_version > polyline.version {
         polyline.points = new_points;
         polyline.version = new_version;
+
+        let mut entity = commands.entity(entity);
+        entity.remove::<Collider>();
+        entity.insert(polyline.collider());
     }
 }
 
