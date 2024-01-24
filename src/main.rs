@@ -1,7 +1,7 @@
-use bevy::app::{App, Startup};
+use bevy::app::{App, Startup, Update};
 use bevy::DefaultPlugins;
 use bevy::math::Vec2;
-use bevy::prelude::{Camera2dBundle, Commands, Component, OrthographicProjection};
+use bevy::prelude::{Camera2dBundle, Color, Commands, Component, Gizmos, OrthographicProjection, Query};
 use bevy::utils::default;
 use bevy_rapier2d::dynamics::RigidBody;
 use bevy_rapier2d::geometry::Collider;
@@ -15,13 +15,14 @@ fn main() {
         .add_plugins(RapierDebugRenderPlugin::default())
         .add_systems(Startup, startup_camera)
         .add_systems(Startup, startup_polyline)
+        .add_systems(Update, update)
         .run();
 }
 
 fn startup_camera(mut commands: Commands) {
     commands.spawn(Camera2dBundle {
         projection: OrthographicProjection {
-            scale: 1. / 16.,
+            scale: 1. / 32.,
             ..default()
         },
         ..default()
@@ -61,5 +62,16 @@ impl Polyline {
 impl From<Vec<Vec2>> for Polyline {
     fn from(points: Vec<Vec2>) -> Self {
         Polyline { points }
+    }
+}
+
+fn update(
+    query: Query<&Polyline>,
+    mut gizmos: Gizmos,
+) {
+    for polyline in query.iter() {
+        for point in &polyline.points {
+            gizmos.circle_2d(*point, 1. / 4., Color::MAROON);
+        }
     }
 }
