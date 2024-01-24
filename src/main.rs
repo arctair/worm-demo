@@ -1,7 +1,7 @@
 use bevy::app::{App, Startup, Update};
 use bevy::DefaultPlugins;
 use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{Camera, Camera2dBundle, Color, Commands, Component, Gizmos, GlobalTransform, OrthographicProjection, Query, Transform, TransformBundle, With};
+use bevy::prelude::{Camera, Camera2dBundle, Color, Commands, Component, Entity, Gizmos, GlobalTransform, OrthographicProjection, Query, Transform, TransformBundle, With};
 use bevy::utils::default;
 use bevy::window::{PrimaryWindow, Window};
 use bevy_rapier2d::dynamics::RigidBody;
@@ -17,8 +17,7 @@ fn main() {
         .add_systems(Startup, startup_camera)
         .add_systems(Startup, startup_polyline)
         .add_systems(Startup, startup_player)
-        .add_systems(Update, update)
-        .add_systems(Update, update_player)
+        .add_systems(Update, (update_player, nudge_vertices, polyline_gizmo))
         .run();
 }
 
@@ -54,6 +53,7 @@ fn startup_polyline(mut commands: Commands) {
 #[derive(Component)]
 struct Polyline {
     points: Vec<Vec2>,
+    version: usize,
 }
 
 impl Polyline {
@@ -64,7 +64,7 @@ impl Polyline {
 
 impl From<Vec<Vec2>> for Polyline {
     fn from(points: Vec<Vec2>) -> Self {
-        Polyline { points }
+        Polyline { points, version: 0 }
     }
 }
 
@@ -77,17 +77,6 @@ fn startup_player(mut commands: Commands) {
 
 #[derive(Component)]
 struct Player;
-
-fn update(
-    query: Query<&Polyline>,
-    mut gizmos: Gizmos,
-) {
-    for polyline in query.iter() {
-        for point in &polyline.points {
-            gizmos.circle_2d(*point, 1. / 4., Color::MAROON);
-        }
-    }
-}
 
 fn update_player(
     camera_query: Query<(&Camera, &GlobalTransform)>,
@@ -103,3 +92,40 @@ fn update_player(
         transform.translation = Vec3::new(point.x, point.y, 0.);
     }
 }
+
+fn nudge_vertices(
+    mut polyline_query: Query<&mut Polyline>,
+    player_query: Query<&Transform, With<Player>>,
+) {
+    let transform = player_query.single();
+    let mut polyline = polyline_query.single_mut();
+
+    let mut new_version = polyline.version;
+    let new_points = polyline.points.iter().map(|point| {
+        let distance = point.distance(transform.translation.truncate());
+        if distance >= 1. / 4. {
+            *point
+        } else {
+            new_version += 1;
+            let direction = transform.looking_at(point.extend(0.), Vec3::Y).forward();
+            *point + (direction * (1. / 4. - distance)).truncate()
+        }
+    }).collect();
+
+    if new_version > polyline.version {
+        polyline.points = new_points;
+        polyline.version = new_version;
+    }
+}
+
+fn polyline_gizmo(
+    query: Query<&Polyline>,
+    mut gizmos: Gizmos,
+) {
+    for polyline in query.iter() {
+        for point in &polyline.points {
+            gizmos.circle_2d(*point, 1. / 4., Color::MAROON);
+        }
+    }
+}
+
