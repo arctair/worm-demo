@@ -145,16 +145,18 @@ fn nudge_vertices(
     let (entity, mut polyline) = polyline_query.single_mut();
 
     let mut new_version = polyline.version;
-    let new_points = polyline.points.iter().map(|point| {
+    let mut new_points = vec![];
+    for point in &polyline.points {
         let distance = point.distance(transform.translation.truncate());
         if distance >= distance_at_least {
-            *point
+            new_points.push(*point)
         } else {
             new_version += 1;
             let direction = transform.looking_at(point.extend(0.), Vec3::Y).forward();
-            *point + (direction * (distance_at_least - distance)).truncate()
+            let delta = direction * (distance_at_least - distance);
+            new_points.push(*point + delta.truncate())
         }
-    }).collect();
+    }
 
     if new_version > polyline.version {
         polyline.points = new_points;
