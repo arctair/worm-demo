@@ -139,7 +139,9 @@ fn nudge_vertices(
     mut polyline_query: Query<(Entity, &mut Polyline)>,
     player_query: Query<&Transform, With<Player>>,
 ) {
-    let distance_at_least = 1. + 1. / 8. + 1. / 8.;
+    let distance_from_player_at_least = 1. + 1. / 8. + 1. / 8.;
+    let distance_at_least = 0.5;
+    let distance_at_most = 1.;
 
     let transform = player_query.single();
     let (entity, mut polyline) = polyline_query.single_mut();
@@ -147,15 +149,35 @@ fn nudge_vertices(
     let mut new_version = polyline.version;
     let mut new_points = vec![];
     for point in &polyline.points {
-        let distance = point.distance(transform.translation.truncate());
-        if distance >= distance_at_least {
-            new_points.push(*point)
-        } else {
+        let distance_from_player = point.distance(transform.translation.truncate());
+        let mut new_point = *point;
+        if distance_from_player < distance_from_player_at_least {
             new_version += 1;
+
             let direction = transform.looking_at(point.extend(0.), Vec3::Y).forward();
-            let delta = direction * (distance_at_least - distance);
-            new_points.push(*point + delta.truncate())
+            let delta = direction * (distance_from_player_at_least - distance_from_player);
+            new_point += delta.truncate()
         }
+
+        let mut last_option = new_points.last();
+        if last_option
+            .map(|last_point| point.distance(*last_point))
+            .is_some_and(|distance_from_last| distance_from_last < distance_at_least) { continue; }
+
+        while match last_option {
+            Some(last) if point.distance(*last) > distance_at_most => true,
+            _ => false,
+        } {
+            new_version += 1;
+
+            let last = *last_option.unwrap();
+            let delta = distance_at_least * (*point - last).normalize();
+            new_points.push(last + delta);
+
+            last_option = new_points.last();
+        }
+
+        new_points.push(new_point)
     }
 
     if new_version > polyline.version {
