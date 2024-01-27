@@ -5,10 +5,11 @@ use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{Camera, Camera2dBundle, Color, Commands, Component, Entity, Gizmos, GlobalTransform, OrthographicProjection, Query, Transform, TransformBundle, With};
 use bevy::utils::default;
 use bevy::window::{PrimaryWindow, Window};
-use bevy_rapier2d::dynamics::RigidBody;
+use bevy_rapier2d::dynamics::{AdditionalMassProperties, ImpulseJoint, LockedAxes, RigidBody};
 use bevy_rapier2d::geometry::Collider;
+use bevy_rapier2d::math::Vect;
 use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
-use bevy_rapier2d::prelude::{Damping, GravityScale, Velocity};
+use bevy_rapier2d::prelude::{GravityScale, PrismaticJointBuilder, Velocity};
 use bevy_rapier2d::render::RapierDebugRenderPlugin;
 
 fn main() {
@@ -17,9 +18,10 @@ fn main() {
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(1.))
         .add_plugins(RapierDebugRenderPlugin::default())
         .add_systems(Startup, startup_camera)
-        .add_systems(Startup, startup_polyline)
+        // .add_systems(Startup, startup_polyline)
         .add_systems(Startup, startup_player)
-        .add_systems(Update, (update_player, nudge_vertices, polyline_gizmo))
+        .add_systems(Update, update_player)
+        // .add_systems(Update, ( nudge_vertices, polyline_gizmo))
         .run();
 }
 
@@ -74,13 +76,38 @@ impl From<Vec<Vec2>> for Polyline {
 }
 
 fn startup_player(mut commands: Commands) {
-    commands.spawn(RigidBody::Dynamic)
-        .insert(TransformBundle::from_transform(Transform::from_xyz(0., 4., 0.)))
+    let player = commands.spawn(RigidBody::Dynamic)
+        .insert(TransformBundle::from_transform(Transform::from_xyz(0., 0., 0.)))
         .insert(GravityScale(0.))
         .insert(Velocity::default())
         .insert(Collider::ball(1.))
-        .insert(Damping { linear_damping: 0., angular_damping: 1. })
-        .insert(Player);
+        // .insert(Damping { linear_damping: 0., angular_damping: 1. })
+        .insert(Player)
+        .id();
+
+    let up_joint = PrismaticJointBuilder::new(Vect::Y)
+        .local_anchor1(Vec2::new(0., 8.))
+        .local_anchor2(Vec2::new(0., 0.));
+
+    commands.spawn(RigidBody::Dynamic)
+        .insert(LockedAxes::TRANSLATION_LOCKED_Y)
+        .insert(AdditionalMassProperties::Mass(0.1))
+        .insert(GravityScale(0.))
+        .insert(Collider::polyline(vec![Vec2::new(-1., 0.), Vec2::new(1., 0.)], None))
+        .insert(TransformBundle::from_transform(Transform::from_xyz(0., 8., 0.)))
+        .insert(ImpulseJoint::new(player, up_joint));
+
+    let down_joint = PrismaticJointBuilder::new(Vect::Y)
+        .local_anchor1(Vec2::new(0., 8.))
+        .local_anchor2(Vec2::new(0., 0.));
+
+    commands.spawn(RigidBody::Dynamic)
+        .insert(LockedAxes::TRANSLATION_LOCKED_Y)
+        .insert(AdditionalMassProperties::Mass(0.1))
+        .insert(GravityScale(0.))
+        .insert(Collider::polyline(vec![Vec2::new(-1., 0.), Vec2::new(1., 0.)], None))
+        .insert(TransformBundle::from_transform(Transform::from_xyz(0., -8., 0.)))
+        .insert(ImpulseJoint::new(player, down_joint));
 }
 
 #[derive(Component)]
