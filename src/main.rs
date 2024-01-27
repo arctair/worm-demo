@@ -17,11 +17,13 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(1.))
         .add_plugins(RapierDebugRenderPlugin::default())
+
         .add_systems(Startup, startup_camera)
-        // .add_systems(Startup, startup_polyline)
         .add_systems(Startup, startup_player)
         .add_systems(Update, update_player)
-        // .add_systems(Update, ( nudge_vertices, polyline_gizmo))
+
+        .add_systems(Startup, startup_polyline)
+        .add_systems(Update, (nudge_vertices, polyline_gizmo))
         .run();
 }
 
@@ -39,11 +41,11 @@ fn startup_polyline(mut commands: Commands) {
     let mut points = vec![];
 
     {
-        let width = 24;
-        let count = width + 1;
+        let height = 24;
+        let count = height + 1;
         for index in 0..count {
-            let x = index as f32 - (count - 1) as f32 / 2.;
-            let point = Vec2::new(x, 0.);
+            let y = index as f32 - (count - 1) as f32 / 2.;
+            let point = Vec2::new(0., y);
             points.push(point)
         }
     }
@@ -77,7 +79,7 @@ impl From<Vec<Vec2>> for Polyline {
 
 fn startup_player(mut commands: Commands) {
     let player = commands.spawn(RigidBody::Dynamic)
-        .insert(TransformBundle::from_transform(Transform::from_xyz(0., 0., 0.)))
+        .insert(TransformBundle::from_transform(Transform::from_xyz(-8., 0., 0.)))
         .insert(GravityScale(0.))
         .insert(Velocity::default())
         .insert(Collider::ball(1.))
@@ -94,7 +96,7 @@ fn startup_player(mut commands: Commands) {
         .insert(AdditionalMassProperties::Mass(0.1))
         .insert(GravityScale(0.))
         .insert(Collider::polyline(vec![Vec2::new(-1., 0.), Vec2::new(1., 0.)], None))
-        .insert(TransformBundle::from_transform(Transform::from_xyz(0., 8., 0.)))
+        .insert(TransformBundle::from_transform(Transform::from_xyz(-8., 8., 0.)))
         .insert(ImpulseJoint::new(player, up_joint));
 
     let down_joint = PrismaticJointBuilder::new(Vect::Y)
@@ -106,7 +108,7 @@ fn startup_player(mut commands: Commands) {
         .insert(AdditionalMassProperties::Mass(0.1))
         .insert(GravityScale(0.))
         .insert(Collider::polyline(vec![Vec2::new(-1., 0.), Vec2::new(1., 0.)], None))
-        .insert(TransformBundle::from_transform(Transform::from_xyz(0., -8., 0.)))
+        .insert(TransformBundle::from_transform(Transform::from_xyz(-8., -8., 0.)))
         .insert(ImpulseJoint::new(player, down_joint));
 }
 
