@@ -166,9 +166,9 @@ fn nudge_vertices(
         }
 
         let mut last_option = new_points.last();
-        if last_option
-            .map(|last_point| point.distance(*last_point))
-            .is_some_and(|distance_from_last| distance_from_last < distance_at_least) { continue; }
+        if last_option.is_some_and(|last_point| point.distance(*last_point) < distance_at_least) {
+            continue;
+        }
 
         while last_option.is_some_and(|last|point.distance(*last) > distance_at_most)  {
             new_version += 1;
