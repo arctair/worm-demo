@@ -170,10 +170,7 @@ fn nudge_vertices(
             .map(|last_point| point.distance(*last_point))
             .is_some_and(|distance_from_last| distance_from_last < distance_at_least) { continue; }
 
-        while match last_option {
-            Some(last) if point.distance(*last) > distance_at_most => true,
-            _ => false,
-        } {
+        while last_option.is_some_and(|last|point.distance(*last) > distance_at_most)  {
             new_version += 1;
 
             let last = *last_option.unwrap();
