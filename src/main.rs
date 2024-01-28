@@ -6,10 +6,10 @@ use bevy::prelude::{Camera, Camera2dBundle, Color, Commands, Component, Entity, 
 use bevy::utils::default;
 use bevy::window::{PrimaryWindow, Window};
 use bevy_rapier2d::dynamics::{AdditionalMassProperties, ImpulseJoint, LockedAxes, RigidBody};
-use bevy_rapier2d::geometry::Collider;
+use bevy_rapier2d::geometry::{Collider, CollisionGroups};
 use bevy_rapier2d::math::Vect;
 use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
-use bevy_rapier2d::prelude::{GravityScale, PrismaticJointBuilder, Velocity};
+use bevy_rapier2d::prelude::{GravityScale, Group, PrismaticJointBuilder, Velocity};
 use bevy_rapier2d::render::RapierDebugRenderPlugin;
 
 fn main() {
@@ -53,7 +53,9 @@ fn startup_polyline(mut commands: Commands) {
     let polyline = Polyline::from(points);
     commands.spawn(RigidBody::Fixed)
         .insert(polyline.collider())
-        .insert(polyline);
+        .insert(polyline)
+        .insert(CollisionGroups::new(Group::GROUP_1, Group::ALL))
+    ;
 }
 
 #[derive(Component)]
@@ -97,7 +99,9 @@ fn startup_player(mut commands: Commands) {
         .insert(GravityScale(0.))
         .insert(Collider::polyline(vec![Vec2::new(-1., 0.), Vec2::new(1., 0.)], None))
         .insert(TransformBundle::from_transform(Transform::from_xyz(-8., 8., 0.)))
-        .insert(ImpulseJoint::new(player, up_joint));
+        .insert(ImpulseJoint::new(player, up_joint))
+        .insert(CollisionGroups::new(Group::GROUP_2, Group::GROUP_2))
+    ;
 
     let down_joint = PrismaticJointBuilder::new(Vect::Y)
         .local_anchor1(Vec2::new(0., 8.))
@@ -109,7 +113,9 @@ fn startup_player(mut commands: Commands) {
         .insert(GravityScale(0.))
         .insert(Collider::polyline(vec![Vec2::new(-1., 0.), Vec2::new(1., 0.)], None))
         .insert(TransformBundle::from_transform(Transform::from_xyz(-8., -8., 0.)))
-        .insert(ImpulseJoint::new(player, down_joint));
+        .insert(ImpulseJoint::new(player, down_joint))
+        .insert(CollisionGroups::new(Group::GROUP_2, Group::GROUP_2))
+    ;
 }
 
 #[derive(Component)]
