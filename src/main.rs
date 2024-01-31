@@ -2,7 +2,7 @@ use bevy::app::{App, Startup, Update};
 use bevy::DefaultPlugins;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::KeyboardInput;
-use bevy::math::Vec2;
+use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{Camera, Camera2dBundle, Color, Commands, Component, EventReader, Gizmos, GlobalTransform, KeyCode, OrthographicProjection, Query, Transform, TransformBundle, With};
 use bevy::utils::default;
 use bevy::window::{PrimaryWindow, Window};
@@ -40,7 +40,7 @@ fn startup_camera(mut commands: Commands) {
 
 fn startup_player(mut commands: Commands) {
     commands.spawn(RigidBody::Dynamic)
-        .insert(TransformBundle::from_transform(Transform::from_xyz(0., 0., 0.)))
+        .insert(TransformBundle::from_transform(Transform::from_xyz(-4., 4., 0.)))
         .insert(GravityScale(0.))
         .insert(Velocity::default())
         .insert(Collider::cuboid(2., 2.))
@@ -94,10 +94,32 @@ fn update_player(
     }
 }
 
-fn startup_terrain() {}
+fn startup_terrain(mut commands: Commands) {
+    commands.spawn(RigidBody::Fixed)
+        .insert(Polygon::from(vec![
+            Vec2::new(-0.5, -0.5),
+            Vec2::new(-0.5, 0.5),
+            Vec2::new(0.5, 0.5),
+            Vec2::new(0.5, -0.5),
+        ]))
+        .insert(TransformBundle::from_transform(Transform::from_xyz(32., -32., 0.).with_scale(Vec3::splat(64.))))
+    ;
+}
+
+#[derive(Component)]
+struct Polygon {
+    vertices: Vec<Vec2>,
+}
+
+impl From<Vec<Vec2>> for Polygon {
+    fn from(vertices: Vec<Vec2>) -> Self {
+        Polygon { vertices }
+    }
+}
 
 fn update_terrain(
     mut player_query: Query<(&Controls, &Transform), With<Player>>,
+    terrain_query: Query<(&Polygon, &Transform)>,
     mut gizmos: Gizmos,
 ) {
     let (player_controls, player_transform) = player_query.single_mut();
@@ -109,6 +131,14 @@ fn update_terrain(
         for offset in offsets {
             let position = player_transform.translation + offset;
             gizmos.circle_2d(position.truncate(), 0.25, Color::YELLOW);
+        }
+    }
+
+    for (polygon, transform) in terrain_query.iter() {
+        for index in 0..polygon.vertices.len() {
+            let start = transform.translation + transform.scale * polygon.vertices[index].extend(0.);
+            let end = transform.translation + transform.scale * polygon.vertices[(index + 1) % polygon.vertices.len()].extend(0.);
+            gizmos.line(start, end, Color::ORANGE);
         }
     }
 }
