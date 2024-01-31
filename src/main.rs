@@ -2,7 +2,7 @@ use bevy::app::{App, Startup, Update};
 use bevy::core::Zeroable;
 use bevy::DefaultPlugins;
 use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{Camera, Camera2dBundle, Color, Commands, Component, Entity, Gizmos, GlobalTransform, OrthographicProjection, Query, Transform, TransformBundle, With};
+use bevy::prelude::{Bundle, Camera, Camera2dBundle, Color, Commands, Component, Entity, Gizmos, GlobalTransform, OrthographicProjection, Query, Transform, TransformBundle, With};
 use bevy::utils::default;
 use bevy::window::{PrimaryWindow, Window};
 use bevy_rapier2d::dynamics::{AdditionalMassProperties, ImpulseJoint, LockedAxes, RigidBody};
@@ -50,12 +50,27 @@ fn startup_polyline(mut commands: Commands) {
         }
     }
 
-    let polyline = Polyline::from(points);
-    commands.spawn(RigidBody::Fixed)
-        .insert(polyline.collider())
-        .insert(polyline)
-        .insert(CollisionGroups::new(Group::GROUP_1, Group::ALL))
-    ;
+    commands.spawn(PolylineBundle::from(points));
+}
+
+#[derive(Bundle)]
+struct PolylineBundle {
+    collider: Collider,
+    collision_groups: CollisionGroups,
+    polyline: Polyline,
+    rigid_body: RigidBody,
+}
+
+impl From<Vec<Vec2>> for PolylineBundle {
+    fn from(points: Vec<Vec2>) -> Self {
+        let polyline = Polyline::from(points);
+        PolylineBundle {
+            collider: polyline.collider(),
+            collision_groups: CollisionGroups::new(Group::GROUP_1, Group::ALL),
+            polyline,
+            rigid_body: RigidBody::Fixed,
+        }
+    }
 }
 
 #[derive(Component)]
@@ -150,46 +165,66 @@ fn nudge_vertices(
     let distance_at_most = 1.;
 
     let transform = player_query.single();
-    let (entity, mut polyline) = polyline_query.single_mut();
+    for (entity, mut polyline) in polyline_query.iter_mut() {
+        let mut new_version = polyline.version;
+        let mut new_points = vec![];
+        for point in &polyline.points {
+            let distance_from_player = point.distance(transform.translation.truncate());
+            let mut new_point = *point;
+            if distance_from_player < distance_from_player_at_least {
+                new_version += 1;
 
-    let mut new_version = polyline.version;
-    let mut new_points = vec![];
-    for point in &polyline.points {
-        let distance_from_player = point.distance(transform.translation.truncate());
-        let mut new_point = *point;
-        if distance_from_player < distance_from_player_at_least {
-            new_version += 1;
+                let direction = transform.looking_at(point.extend(0.), Vec3::Y).forward();
+                let delta = direction * (distance_from_player_at_least - distance_from_player);
+                new_point += delta.truncate()
+            }
 
-            let direction = transform.looking_at(point.extend(0.), Vec3::Y).forward();
-            let delta = direction * (distance_from_player_at_least - distance_from_player);
-            new_point += delta.truncate()
+            let mut last_option = new_points.last();
+            if last_option.is_some_and(|last_point| point.distance(*last_point) < distance_at_least) {
+                continue;
+            }
+
+            while last_option.is_some_and(|last| point.distance(*last) > distance_at_most) {
+                new_version += 1;
+
+                let last = *last_option.unwrap();
+                let delta = distance_at_least * (*point - last).normalize();
+                new_points.push(last + delta);
+
+                last_option = new_points.last();
+            }
+
+            // TODO: if a shorter path to this point than new_points exists then
+            // TODO:   move the path after that path to a new polyline
+
+            for (index, check_point) in new_points.iter().enumerate() {
+                if index < new_points.len() - 1 && new_point.distance(*check_point) <= distance_at_least {
+                    let move_count = new_points.len() - index - 1;
+                    let mut oxbow = vec![];
+                    for _ in 0..move_count {
+                        oxbow.push(new_points.remove(index + 1));
+                    }
+                    oxbow.push(oxbow[0]);
+                    if oxbow.len() > 2 {
+                        commands.spawn(PolylineBundle::from(oxbow.to_vec()));
+                    }
+                    break;
+                }
+            }
+
+            new_points.push(new_point)
         }
 
-        let mut last_option = new_points.last();
-        if last_option.is_some_and(|last_point| point.distance(*last_point) < distance_at_least) {
-            continue;
+        if new_points.len() < 3 {
+            commands.entity(entity).despawn();
+        } else if new_version > polyline.version {
+            polyline.points = new_points;
+            polyline.version = new_version;
+
+            let mut entity = commands.entity(entity);
+            entity.remove::<Collider>();
+            entity.insert(polyline.collider());
         }
-
-        while last_option.is_some_and(|last|point.distance(*last) > distance_at_most)  {
-            new_version += 1;
-
-            let last = *last_option.unwrap();
-            let delta = distance_at_least * (*point - last).normalize();
-            new_points.push(last + delta);
-
-            last_option = new_points.last();
-        }
-
-        new_points.push(new_point)
-    }
-
-    if new_version > polyline.version {
-        polyline.points = new_points;
-        polyline.version = new_version;
-
-        let mut entity = commands.entity(entity);
-        entity.remove::<Collider>();
-        entity.insert(polyline.collider());
     }
 }
 
