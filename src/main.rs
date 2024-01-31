@@ -3,7 +3,7 @@ use bevy::DefaultPlugins;
 use bevy::input::ButtonState;
 use bevy::input::keyboard::KeyboardInput;
 use bevy::math::Vec2;
-use bevy::prelude::{Camera, Camera2dBundle, Commands, Component, EventReader, GlobalTransform, KeyCode, OrthographicProjection, Query, Transform, TransformBundle, With};
+use bevy::prelude::{Camera, Camera2dBundle, Color, Commands, Component, EventReader, Gizmos, GlobalTransform, KeyCode, OrthographicProjection, Query, Transform, TransformBundle, With};
 use bevy::utils::default;
 use bevy::window::{PrimaryWindow, Window};
 use bevy_rapier2d::dynamics::RigidBody;
@@ -21,6 +21,9 @@ fn main() {
         .add_systems(Startup, startup_camera)
         .add_systems(Startup, startup_player)
         .add_systems(Update, update_player)
+
+        .add_systems(Startup, startup_terrain)
+        .add_systems(Update, update_terrain)
 
         .run();
 }
@@ -49,6 +52,7 @@ fn startup_player(mut commands: Commands) {
 struct Controls {
     left: bool,
     right: bool,
+    action: bool,
 }
 
 #[derive(Component)]
@@ -69,6 +73,8 @@ fn update_player(
             (Some(KeyCode::A), ButtonState::Released) => { player_controls.left = false }
             (Some(KeyCode::D), ButtonState::Pressed) => { player_controls.right = true }
             (Some(KeyCode::D), ButtonState::Released) => { player_controls.right = false }
+            (Some(KeyCode::Space), ButtonState::Pressed) => { player_controls.action = true }
+            (Some(KeyCode::Space), ButtonState::Released) => { player_controls.action = false }
             _ => {}
         }
     }
@@ -85,5 +91,24 @@ fn update_player(
         let old_forward = player_transform.right().truncate();
         let new_forward = cursor_point - player_transform.translation.truncate();
         player_transform.rotate_z(old_forward.angle_between(new_forward));
+    }
+}
+
+fn startup_terrain() {}
+
+fn update_terrain(
+    mut player_query: Query<(&Controls, &Transform), With<Player>>,
+    mut gizmos: Gizmos,
+) {
+    let (player_controls, player_transform) = player_query.single_mut();
+
+    if player_controls.action {
+        let right = player_transform.right();
+        let up = player_transform.up();
+        let offsets = vec![2. * right + 2. * up, 6. * right + 2. * up, 6. * right - 2. * up, 2. * right - 2. * up];
+        for offset in offsets {
+            let position = player_transform.translation + offset;
+            gizmos.circle_2d(position.truncate(), 0.25, Color::YELLOW);
+        }
     }
 }
