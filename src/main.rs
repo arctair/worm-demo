@@ -7,11 +7,10 @@ use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{Camera, Camera2dBundle, Commands, Component, Entity, GlobalTransform, OrthographicProjection, Query, Transform, TransformBundle, With};
 use bevy::utils::default;
 use bevy::window::{PrimaryWindow, Window};
-use bevy_rapier2d::dynamics::{AdditionalMassProperties, ImpulseJoint, LockedAxes, RigidBody};
-use bevy_rapier2d::geometry::{Collider, CollisionGroups};
-use bevy_rapier2d::math::Vect;
+use bevy_rapier2d::dynamics::{Damping, RigidBody};
+use bevy_rapier2d::geometry::Collider;
 use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
-use bevy_rapier2d::prelude::{GravityScale, Group, PrismaticJointBuilder, Velocity};
+use bevy_rapier2d::prelude::{GravityScale, Velocity};
 use bevy_rapier2d::render::RapierDebugRenderPlugin;
 use crate::polyline::{Polyline, polyline_gizmo, PolylineBundle};
 
@@ -57,41 +56,13 @@ fn startup_polyline(mut commands: Commands) {
 }
 
 fn startup_player(mut commands: Commands) {
-    let player = commands.spawn(RigidBody::Dynamic)
+    commands.spawn(RigidBody::Dynamic)
         .insert(TransformBundle::from_transform(Transform::from_xyz(-8., 0., 0.)))
         .insert(GravityScale(0.))
         .insert(Velocity::default())
         .insert(Collider::ball(1.))
-        // .insert(Damping { linear_damping: 0., angular_damping: 1. })
+        .insert(Damping { linear_damping: 0., angular_damping: 1. })
         .insert(Player)
-        .id();
-
-    let up_joint = PrismaticJointBuilder::new(Vect::Y)
-        .local_anchor1(Vec2::new(0., 8.))
-        .local_anchor2(Vec2::new(0., 0.));
-
-    commands.spawn(RigidBody::Dynamic)
-        .insert(LockedAxes::TRANSLATION_LOCKED_Y)
-        .insert(AdditionalMassProperties::Mass(0.1))
-        .insert(GravityScale(0.))
-        .insert(Collider::polyline(vec![Vec2::new(-1., 0.), Vec2::new(1., 0.)], None))
-        .insert(TransformBundle::from_transform(Transform::from_xyz(-8., 8., 0.)))
-        .insert(ImpulseJoint::new(player, up_joint))
-        .insert(CollisionGroups::new(Group::GROUP_2, Group::GROUP_2))
-    ;
-
-    let down_joint = PrismaticJointBuilder::new(Vect::Y)
-        .local_anchor1(Vec2::new(0., 8.))
-        .local_anchor2(Vec2::new(0., 0.));
-
-    commands.spawn(RigidBody::Dynamic)
-        .insert(LockedAxes::TRANSLATION_LOCKED_Y)
-        .insert(AdditionalMassProperties::Mass(0.1))
-        .insert(GravityScale(0.))
-        .insert(Collider::polyline(vec![Vec2::new(-1., 0.), Vec2::new(1., 0.)], None))
-        .insert(TransformBundle::from_transform(Transform::from_xyz(-8., -8., 0.)))
-        .insert(ImpulseJoint::new(player, down_joint))
-        .insert(CollisionGroups::new(Group::GROUP_2, Group::GROUP_2))
     ;
 }
 
