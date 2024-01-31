@@ -40,19 +40,7 @@ fn startup_camera(mut commands: Commands) {
 }
 
 fn startup_polyline(mut commands: Commands) {
-    let mut points = vec![];
-
-    {
-        let height = 24;
-        let count = height + 1;
-        for index in 0..count {
-            let y = index as f32 - (count - 1) as f32 / 2.;
-            let point = Vec2::new(0., y);
-            points.push(point)
-        }
-    }
-
-    commands.spawn(PolylineBundle::from(points));
+    commands.spawn(PolylineBundle::from(Polyline::vertical(24)));
 }
 
 fn startup_player(mut commands: Commands) {
@@ -136,7 +124,7 @@ fn update_polylines(
                     }
                     oxbow.push(oxbow[0]);
                     if oxbow.len() > 2 {
-                        commands.spawn(PolylineBundle::from(oxbow.to_vec()));
+                        commands.spawn(PolylineBundle::from(Polyline::from(oxbow.to_vec())));
                     }
                     break;
                 }

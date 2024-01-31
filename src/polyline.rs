@@ -12,9 +12,8 @@ pub(crate) struct PolylineBundle {
     rigid_body: RigidBody,
 }
 
-impl From<Vec<Vec2>> for PolylineBundle {
-    fn from(points: Vec<Vec2>) -> Self {
-        let polyline = Polyline::from(points);
+impl From<Polyline> for PolylineBundle {
+    fn from(polyline: Polyline) -> Self {
         PolylineBundle {
             collider: polyline.collider(),
             collision_groups: CollisionGroups::new(Group::GROUP_1, Group::ALL),
@@ -33,6 +32,18 @@ pub(crate) struct Polyline {
 impl Polyline {
     pub(crate) fn collider(&self) -> Collider {
         Collider::polyline(self.points.clone(), None)
+    }
+    pub(crate) fn vertical(height: usize) -> Polyline {
+        let mut points = vec![];
+
+        let count = height + 1;
+        for index in 0..count {
+            let y = index as f32 - (count - 1) as f32 / 2.;
+            let point = Vec2::new(0., y);
+            points.push(point)
+        }
+
+        return Polyline::from(points);
     }
 }
 
