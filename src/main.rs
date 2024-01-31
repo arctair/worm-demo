@@ -82,7 +82,7 @@ fn update_player(
         .cursor_position()
         .and_then(|cursor_position| camera.viewport_to_world_2d(camera_transform, cursor_position))
     {
-        let old_forward = player_transform.local_y().truncate();
+        let old_forward = player_transform.right().truncate();
         let new_forward = cursor_point - player_transform.translation.truncate();
         player_transform.rotate_z(old_forward.angle_between(new_forward));
     }
