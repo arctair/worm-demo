@@ -1,3 +1,5 @@
+mod polygon;
+
 use bevy::app::{App, Startup, Update};
 use bevy::DefaultPlugins;
 use bevy::input::ButtonState;
@@ -11,6 +13,7 @@ use bevy_rapier2d::geometry::Collider;
 use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
 use bevy_rapier2d::prelude::{GravityScale, Velocity};
 use bevy_rapier2d::render::RapierDebugRenderPlugin;
+use crate::polygon::Polygon;
 
 fn main() {
     App::new()
@@ -102,19 +105,10 @@ fn startup_terrain(mut commands: Commands) {
             Vec2::new(0.5, 0.5),
             Vec2::new(0.5, -0.5),
         ]))
-        .insert(TransformBundle::from_transform(Transform::from_xyz(32., -32., 0.).with_scale(Vec3::splat(64.))))
-    ;
-}
-
-#[derive(Component)]
-struct Polygon {
-    vertices: Vec<Vec2>,
-}
-
-impl From<Vec<Vec2>> for Polygon {
-    fn from(vertices: Vec<Vec2>) -> Self {
-        Polygon { vertices }
-    }
+        .insert(TransformBundle::from_transform(
+            Transform::from_xyz(32., -32., 0.)
+                .with_scale(Vec3::splat(64.))
+        ));
 }
 
 fn update_terrain(
