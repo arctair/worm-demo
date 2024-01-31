@@ -25,7 +25,7 @@ fn main() {
         .add_systems(Update, update_player)
 
         .add_systems(Startup, startup_polyline)
-        .add_systems(Update, (nudge_vertices, polyline_gizmo))
+        .add_systems(Update, (update_polylines, polyline_gizmo))
         .run();
 }
 
@@ -88,7 +88,7 @@ fn update_player(
     }
 }
 
-fn nudge_vertices(
+fn update_polylines(
     mut commands: Commands,
     mut polyline_query: Query<(Entity, &mut Polyline)>,
     player_query: Query<&Transform, With<Player>>,
