@@ -1,18 +1,13 @@
-mod polyline;
-
 use bevy::app::{App, Startup, Update};
-use bevy::core::Zeroable;
 use bevy::DefaultPlugins;
-use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{Camera, Camera2dBundle, Commands, Component, Entity, GlobalTransform, OrthographicProjection, Query, Transform, TransformBundle, With};
+use bevy::prelude::{Camera, Camera2dBundle, Commands, Component, GlobalTransform, OrthographicProjection, Query, Transform, TransformBundle, With};
 use bevy::utils::default;
 use bevy::window::{PrimaryWindow, Window};
-use bevy_rapier2d::dynamics::{Damping, RigidBody};
+use bevy_rapier2d::dynamics::RigidBody;
 use bevy_rapier2d::geometry::Collider;
 use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
 use bevy_rapier2d::prelude::{GravityScale, Velocity};
 use bevy_rapier2d::render::RapierDebugRenderPlugin;
-use crate::polyline::{Polyline, polyline_gizmo, PolylineBundle};
 
 fn main() {
     App::new()
@@ -24,34 +19,26 @@ fn main() {
         .add_systems(Startup, startup_player)
         .add_systems(Update, update_player)
 
-        .add_systems(Startup, startup_polyline)
-        .add_systems(Update, (update_polylines, polyline_gizmo))
         .run();
 }
 
 fn startup_camera(mut commands: Commands) {
     commands.spawn(Camera2dBundle {
         projection: OrthographicProjection {
-            scale: 1. / 32.,
+            scale: 1.,
             ..default()
         },
         ..default()
     });
 }
 
-fn startup_polyline(mut commands: Commands) {
-    commands.spawn(PolylineBundle::from(Polyline::vertical(24)));
-}
-
 fn startup_player(mut commands: Commands) {
     commands.spawn(RigidBody::Dynamic)
-        .insert(TransformBundle::from_transform(Transform::from_xyz(-8., 0., 0.)))
+        .insert(TransformBundle::from_transform(Transform::from_xyz(0., 0., 0.)))
         .insert(GravityScale(0.))
         .insert(Velocity::default())
-        .insert(Collider::ball(1.))
-        .insert(Damping { linear_damping: 0., angular_damping: 1. })
-        .insert(Player)
-    ;
+        .insert(Collider::cuboid(16., 16.))
+        .insert(Player);
 }
 
 #[derive(Component)]
@@ -59,89 +46,19 @@ struct Player;
 
 fn update_player(
     camera_query: Query<(&Camera, &GlobalTransform)>,
-    mut player_query: Query<(&mut Velocity, &Transform), With<Player>>,
+    mut player_query: Query<(&mut Velocity, &mut Transform), With<Player>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
-    let (camera, transform) = camera_query.single();
-    let point = window_query.single().cursor_position()
-        .and_then(|position| camera.viewport_to_world(transform, position))
-        .map(|ray| ray.origin.truncate());
-    let (mut velocity, transform) = player_query.single_mut();
+    let (camera, camera_transform) = camera_query.single();
+    let (mut player_velocity, mut player_transform) = player_query.single_mut();
 
-    velocity.linvel = match point {
-        Some(point)  if point.distance(transform.translation.truncate()) > 1. => {
-            4. * transform.looking_at(point.extend(0.), Vec3::Y).forward().truncate()
-        }
-        _ => Vec2::zeroed()
-    }
-}
-
-fn update_polylines(
-    mut commands: Commands,
-    mut polyline_query: Query<(Entity, &mut Polyline)>,
-    player_query: Query<&Transform, With<Player>>,
-) {
-    let distance_from_player_at_least = 1. + 1. / 8. + 1. / 8.;
-    let distance_at_least = 0.5;
-    let distance_at_most = 1.;
-
-    let transform = player_query.single();
-    for (entity, mut polyline) in polyline_query.iter_mut() {
-        let mut new_version = polyline.version;
-        let mut new_points = vec![];
-        for point in &polyline.points {
-            let distance_from_player = point.distance(transform.translation.truncate());
-            let mut new_point = *point;
-            if distance_from_player < distance_from_player_at_least {
-                new_version += 1;
-
-                let direction = transform.looking_at(point.extend(0.), Vec3::Y).forward();
-                let delta = direction * (distance_from_player_at_least - distance_from_player);
-                new_point += delta.truncate()
-            }
-
-            let mut last_option = new_points.last();
-            if last_option.is_some_and(|last_point| point.distance(*last_point) < distance_at_least) {
-                continue;
-            }
-
-            while last_option.is_some_and(|last| point.distance(*last) > distance_at_most) {
-                new_version += 1;
-
-                let last = *last_option.unwrap();
-                let delta = distance_at_least * (*point - last).normalize();
-                new_points.push(last + delta);
-
-                last_option = new_points.last();
-            }
-
-            for (index, check_point) in new_points.iter().enumerate() {
-                if index < new_points.len() - 1 && new_point.distance(*check_point) <= distance_at_least {
-                    let move_count = new_points.len() - index - 1;
-                    let mut oxbow = vec![];
-                    for _ in 0..move_count {
-                        oxbow.push(new_points.remove(index + 1));
-                    }
-                    oxbow.push(oxbow[0]);
-                    if oxbow.len() > 2 {
-                        commands.spawn(PolylineBundle::from(Polyline::from(oxbow.to_vec())));
-                    }
-                    break;
-                }
-            }
-
-            new_points.push(new_point)
-        }
-
-        if new_points.len() < 3 {
-            commands.entity(entity).despawn();
-        } else if new_version > polyline.version {
-            polyline.points = new_points;
-            polyline.version = new_version;
-
-            let mut entity = commands.entity(entity);
-            entity.remove::<Collider>();
-            entity.insert(polyline.collider());
-        }
+    if let Some(cursor_point) = window_query
+        .single()
+        .cursor_position()
+        .and_then(|cursor_position| camera.viewport_to_world_2d(camera_transform, cursor_position))
+    {
+        let old_forward = player_transform.local_y().truncate();
+        let new_forward = cursor_point - player_transform.translation.truncate();
+        player_transform.rotate_z(old_forward.angle_between(new_forward));
     }
 }
