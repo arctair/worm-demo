@@ -1,8 +1,10 @@
+mod polyline;
+
 use bevy::app::{App, Startup, Update};
 use bevy::core::Zeroable;
 use bevy::DefaultPlugins;
 use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{Bundle, Camera, Camera2dBundle, Color, Commands, Component, Entity, Gizmos, GlobalTransform, OrthographicProjection, Query, Transform, TransformBundle, With};
+use bevy::prelude::{Camera, Camera2dBundle, Commands, Component, Entity, GlobalTransform, OrthographicProjection, Query, Transform, TransformBundle, With};
 use bevy::utils::default;
 use bevy::window::{PrimaryWindow, Window};
 use bevy_rapier2d::dynamics::{AdditionalMassProperties, ImpulseJoint, LockedAxes, RigidBody};
@@ -11,6 +13,7 @@ use bevy_rapier2d::math::Vect;
 use bevy_rapier2d::plugin::{NoUserData, RapierPhysicsPlugin};
 use bevy_rapier2d::prelude::{GravityScale, Group, PrismaticJointBuilder, Velocity};
 use bevy_rapier2d::render::RapierDebugRenderPlugin;
+use crate::polyline::{Polyline, polyline_gizmo, PolylineBundle};
 
 fn main() {
     App::new()
@@ -51,47 +54,6 @@ fn startup_polyline(mut commands: Commands) {
     }
 
     commands.spawn(PolylineBundle::from(points));
-}
-
-#[derive(Bundle)]
-struct PolylineBundle {
-    collider: Collider,
-    collision_groups: CollisionGroups,
-    polyline: Polyline,
-    rigid_body: RigidBody,
-}
-
-impl From<Vec<Vec2>> for PolylineBundle {
-    fn from(points: Vec<Vec2>) -> Self {
-        let polyline = Polyline::from(points);
-        PolylineBundle {
-            collider: polyline.collider(),
-            collision_groups: CollisionGroups::new(Group::GROUP_1, Group::ALL),
-            polyline,
-            rigid_body: RigidBody::Fixed,
-        }
-    }
-}
-
-#[derive(Component)]
-struct Polyline {
-    points: Vec<Vec2>,
-    version: usize,
-}
-
-impl Polyline {
-    fn collider(&self) -> Collider {
-        Collider::polyline(self.points.clone(), None)
-    }
-}
-
-impl From<Vec<Vec2>> for Polyline {
-    fn from(points: Vec<Vec2>) -> Self {
-        Polyline {
-            points,
-            version: 0,
-        }
-    }
 }
 
 fn startup_player(mut commands: Commands) {
@@ -227,15 +189,3 @@ fn nudge_vertices(
         }
     }
 }
-
-fn polyline_gizmo(
-    query: Query<&Polyline>,
-    mut gizmos: Gizmos,
-) {
-    for polyline in query.iter() {
-        for point in &polyline.points {
-            gizmos.circle_2d(*point, 1. / 4., Color::MAROON);
-        }
-    }
-}
-
