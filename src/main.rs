@@ -127,9 +127,6 @@ fn update_polylines(
                 last_option = new_points.last();
             }
 
-            // TODO: if a shorter path to this point than new_points exists then
-            // TODO:   move the path after that path to a new polyline
-
             for (index, check_point) in new_points.iter().enumerate() {
                 if index < new_points.len() - 1 && new_point.distance(*check_point) <= distance_at_least {
                     let move_count = new_points.len() - index - 1;
