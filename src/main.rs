@@ -1,6 +1,9 @@
 use bevy::app::{App, Startup, Update};
 use bevy::DefaultPlugins;
-use bevy::prelude::{Camera, Camera2dBundle, Commands, Component, GlobalTransform, OrthographicProjection, Query, Transform, TransformBundle, With};
+use bevy::input::ButtonState;
+use bevy::input::keyboard::KeyboardInput;
+use bevy::math::Vec2;
+use bevy::prelude::{Camera, Camera2dBundle, Commands, Component, EventReader, GlobalTransform, KeyCode, OrthographicProjection, Query, Transform, TransformBundle, With};
 use bevy::utils::default;
 use bevy::window::{PrimaryWindow, Window};
 use bevy_rapier2d::dynamics::RigidBody;
@@ -25,7 +28,7 @@ fn main() {
 fn startup_camera(mut commands: Commands) {
     commands.spawn(Camera2dBundle {
         projection: OrthographicProjection {
-            scale: 1.,
+            scale: 1. / 16.,
             ..default()
         },
         ..default()
@@ -37,20 +40,42 @@ fn startup_player(mut commands: Commands) {
         .insert(TransformBundle::from_transform(Transform::from_xyz(0., 0., 0.)))
         .insert(GravityScale(0.))
         .insert(Velocity::default())
-        .insert(Collider::cuboid(16., 16.))
+        .insert(Collider::cuboid(2., 2.))
+        .insert(Controls::default())
         .insert(Player);
+}
+
+#[derive(Component, Default)]
+struct Controls {
+    left: bool,
+    right: bool,
 }
 
 #[derive(Component)]
 struct Player;
 
 fn update_player(
+    mut keyboard_events: EventReader<KeyboardInput>,
     camera_query: Query<(&Camera, &GlobalTransform)>,
-    mut player_query: Query<(&mut Velocity, &mut Transform), With<Player>>,
+    mut player_query: Query<(&mut Controls, &mut Velocity, &mut Transform), With<Player>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
     let (camera, camera_transform) = camera_query.single();
-    let (mut player_velocity, mut player_transform) = player_query.single_mut();
+    let (mut player_controls, mut player_velocity, mut player_transform) = player_query.single_mut();
+
+    for keyboard_event in keyboard_events.read() {
+        match (keyboard_event.key_code, keyboard_event.state) {
+            (Some(KeyCode::A), ButtonState::Pressed) => { player_controls.left = true }
+            (Some(KeyCode::A), ButtonState::Released) => { player_controls.left = false }
+            (Some(KeyCode::D), ButtonState::Pressed) => { player_controls.right = true }
+            (Some(KeyCode::D), ButtonState::Released) => { player_controls.right = false }
+            _ => {}
+        }
+    }
+
+    let left = if player_controls.left { Vec2::NEG_X } else { Vec2::ZERO };
+    let right = if player_controls.right { Vec2::X } else { Vec2::ZERO };
+    player_velocity.linvel = 16. * (left + right);
 
     if let Some(cursor_point) = window_query
         .single()
