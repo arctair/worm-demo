@@ -60,19 +60,7 @@ impl Polygon {
                         let start = self.vertices[start_index];
                         let end = self.vertices[end_index];
                         let start_bounds = bounds.vertices[start_bounds_index];
-                        intersection = segments_intersection2d(
-                            &Point2::from(start),
-                            &Point2::from(end),
-                            &Point2::from(start_bounds),
-                            &Point2::from(bounds.vertices[end_bounds_index]),
-                            0.01,
-                        ).and_then(|intersection| {
-                            if (end.x - start.x) * (start_bounds.y - start.y) - (end.y - start.y) * (start_bounds.x - start.x) > 0. {
-                                Some(intersection)
-                            } else {
-                                None
-                            }
-                        });
+                        intersection = intersection_contains(start, end, start_bounds, bounds.vertices[end_bounds_index]);
                         if intersection.is_some() { break; }
 
                         start_bounds_index = end_bounds_index;
@@ -82,12 +70,11 @@ impl Polygon {
                 TraceMode::TracingBounds => {
                     new_vertices.push(bounds.vertices[start_bounds_index]);
                     for _ in 0..self.vertices.len() {
-                        intersection = segments_intersection2d(
-                            &Point2::from(self.vertices[start_index]),
-                            &Point2::from(self.vertices[end_index]),
-                            &Point2::from(bounds.vertices[start_bounds_index]),
-                            &Point2::from(bounds.vertices[end_bounds_index]),
-                            0.01,
+                        intersection = intersection_contains(
+                            bounds.vertices[start_bounds_index],
+                            bounds.vertices[end_bounds_index],
+                            self.vertices[start_index],
+                            self.vertices[end_index],
                         );
                         if intersection.is_some() { break; }
 
@@ -98,25 +85,13 @@ impl Polygon {
             }
 
 
-            match intersection {
-                Some(Point { loc1: location, .. }) => {
-                    match location {
-                        SegmentPointLocation::OnVertex(_) => {}
-                        SegmentPointLocation::OnEdge([_, from_start]) => {
-                            println!("pushing intersection {start_index}-{end_index} {start_bounds_index}-{end_bounds_index} {from_start}");
-                            let start = self.vertices[start_index];
-                            let end = self.vertices[end_index];
-                            new_vertices.push(start + from_start * (end - start));
+            if let Some(intersection) = intersection {
+                new_vertices.push(intersection);
 
-                            match trace_mode {
-                                TraceMode::TracingSelf => trace_mode = TraceMode::TracingBounds,
-                                TraceMode::TracingBounds => trace_mode = TraceMode::TracingSelf,
-                            }
-                        }
-                    }
+                match trace_mode {
+                    TraceMode::TracingSelf => trace_mode = TraceMode::TracingBounds,
+                    TraceMode::TracingBounds => trace_mode = TraceMode::TracingSelf,
                 }
-                Some(Segment { .. }) => {}
-                None => {}
             }
 
             match trace_mode {
@@ -132,6 +107,25 @@ impl Polygon {
         }
 
         return Self::from(new_vertices);
+    }
+
+}
+
+fn intersection_contains(a_start: Vec2, a_end: Vec2, b_start: Vec2, b_end: Vec2) -> Option<Vec2> {
+    if (a_end.x - a_start.x) * (b_start.y - a_start.y) - (a_end.y - a_start.y) * (b_start.x - a_start.x) > 0. {
+        match segments_intersection2d(
+            &Point2::from(a_start),
+            &Point2::from(a_end),
+            &Point2::from(b_start),
+            &Point2::from(b_end),
+            0.01,
+        ) {
+            Some(Point { loc1: SegmentPointLocation::OnEdge([_, from_start]), .. }) =>
+                Some(a_start + from_start * (a_end - a_start)),
+            _ => None
+        }
+    } else {
+        None
     }
 }
 
