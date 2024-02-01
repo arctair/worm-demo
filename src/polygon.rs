@@ -47,17 +47,17 @@ impl Polygon {
         let mut end_index = 1;
         let mut start_bounds_index = 1;
         let mut end_bounds_index = 0;
+        let mut intersection = None;
 
         while new_vertices.is_empty() || start_index != 0 || match trace_mode {
             TraceMode::TracingBounds => true,
             _ => false
         } {
-            let mut intersection = None;
             match trace_mode {
                 TraceMode::TracingSelf => {
-                    new_vertices.push(self.vertices[start_index]);
+                    let start = intersection.unwrap_or(self.vertices[start_index]);
+                    new_vertices.push(start);
                     for _ in 0..bounds.vertices.len() {
-                        let start = self.vertices[start_index];
                         let end = self.vertices[end_index];
                         let start_bounds = bounds.vertices[start_bounds_index];
                         intersection = intersection_contains(start, end, start_bounds, bounds.vertices[end_bounds_index]);
@@ -68,10 +68,11 @@ impl Polygon {
                     }
                 }
                 TraceMode::TracingBounds => {
-                    new_vertices.push(bounds.vertices[start_bounds_index]);
+                    let start_bounds = intersection.unwrap_or(bounds.vertices[start_bounds_index]);
+                    new_vertices.push(start_bounds);
                     for _ in 0..self.vertices.len() {
                         intersection = intersection_contains(
-                            bounds.vertices[start_bounds_index],
+                            start_bounds,
                             bounds.vertices[end_bounds_index],
                             self.vertices[start_index],
                             self.vertices[end_index],
@@ -84,22 +85,14 @@ impl Polygon {
                 }
             }
 
-
-            if let Some(intersection) = intersection {
-                new_vertices.push(intersection);
-
-                match trace_mode {
-                    TraceMode::TracingSelf => trace_mode = TraceMode::TracingBounds,
-                    TraceMode::TracingBounds => trace_mode = TraceMode::TracingSelf,
-                }
-            }
-
-            match trace_mode {
-                TraceMode::TracingSelf => {
+            match (trace_mode, intersection) {
+                (TraceMode::TracingSelf, Some(_)) => trace_mode = TraceMode::TracingBounds,
+                (TraceMode::TracingBounds, Some(_)) => trace_mode = TraceMode::TracingSelf,
+                (TraceMode::TracingSelf, None) => {
                     start_index = end_index;
                     end_index = (end_index + 1) % self.vertices.len();
                 }
-                TraceMode::TracingBounds => {
+                (TraceMode::TracingBounds, None) => {
                     start_bounds_index = end_bounds_index;
                     end_bounds_index = (end_bounds_index + bounds.vertices.len() - 1) % bounds.vertices.len();
                 }
@@ -108,7 +101,6 @@ impl Polygon {
 
         return Self::from(new_vertices);
     }
-
 }
 
 fn intersection_contains(a_start: Vec2, a_end: Vec2, b_start: Vec2, b_end: Vec2) -> Option<Vec2> {
