@@ -103,6 +103,7 @@ impl Polygon {
                     match location {
                         SegmentPointLocation::OnVertex(_) => {}
                         SegmentPointLocation::OnEdge([_, from_start]) => {
+                            println!("pushing intersection {start_index}-{end_index} {start_bounds_index}-{end_bounds_index} {from_start}");
                             let start = self.vertices[start_index];
                             let end = self.vertices[end_index];
                             new_vertices.push(start + from_start * (end - start));
@@ -193,5 +194,52 @@ mod tests {
             ;
 
         assert_eq!(actual, expected, "Visual: {:?}", save_svg(scene, "test_sink_simple_subtract"))
+    }
+
+    #[test]
+    fn test_sink_double_subtract() {
+        let left_operand = Polygon::from(vec![
+            Vec2::new(3., 2.),
+            Vec2::new(3., 0.),
+            Vec2::new(-2., 0.),
+            Vec2::new(-2., 2.),
+        ]);
+
+        let right_operand = Polygon::from(vec![
+            Vec2::new(2., 4.),
+            Vec2::new(2., 1.),
+            Vec2::new(1., 1.),
+            Vec2::new(1., 3.),
+            Vec2::new(0., 3.),
+            Vec2::new(0., 1.),
+            Vec2::new(-1., 1.),
+            Vec2::new(-1., 4.),
+        ]);
+
+        let actual = left_operand.clone().sink(2., right_operand.clone());
+        let expected = Polygon::from(vec![
+            Vec2::new(3., 2.),
+            Vec2::new(3., 0.),
+            Vec2::new(-2., 0.),
+            Vec2::new(-2., 2.),
+            Vec2::new(-1., 2.),
+            Vec2::new(-1., 1.),
+            Vec2::new(0., 1.),
+            Vec2::new(0., 2.),
+            Vec2::new(1., 2.),
+            Vec2::new(1., 1.),
+            Vec2::new(2., 1.),
+            Vec2::new(2., 2.),
+        ]);
+
+        let scene = Document::new()
+            .set("viewBox", (-3, -4, 7, 6))
+            .add(actual.svg_path("red", 0.25))
+            .add(expected.svg_path("green", 0.125))
+            .add(left_operand.svg_path("black", 0.125 / 4.))
+            .add(right_operand.svg_path("white", 0.125 / 4.))
+            ;
+
+        assert_eq!(actual, expected, "Visual: {:?}", save_svg(scene, "test_sink_double_subtract"))
     }
 }
