@@ -81,21 +81,21 @@ impl PolygonTransformBundle {
 }
 
 fn intersection_contains(a_start: Vec2, a_end: Vec2, b_start: Vec2, b_end: Vec2) -> Option<Vec2> {
-    if (a_end.x - a_start.x) * (b_start.y - a_start.y) - (a_end.y - a_start.y) * (b_start.x - a_start.x) > 0. {
-        match segments_intersection2d(
-            &Point2::from(a_start),
-            &Point2::from(a_end),
-            &Point2::from(b_start),
-            &Point2::from(b_end),
-            0.01,
-        ) {
-            Some(Point { loc1: SegmentPointLocation::OnEdge([_, from_start]), .. }) =>
-                Some(a_start + from_start * (a_end - a_start)),
-            _ => None
-        }
-    } else {
-        None
+    match segments_intersection2d(
+        &Point2::from(a_start),
+        &Point2::from(a_end),
+        &Point2::from(b_start),
+        &Point2::from(b_end),
+        0.01,
+    ).filter(|| cross(a_start, a_end, b_start) > 0.) {
+        Some(Point { loc1: SegmentPointLocation::OnEdge([_, from_start]), .. }) =>
+            Some(a_start + from_start * (a_end - a_start)),
+        _ => None
     }
+}
+
+fn cross(a_start: Vec2, a_end: Vec2, b_start: Vec2) -> f32 {
+    (a_end.x - a_start.x) * (b_start.y - a_start.y) - (a_end.y - a_start.y) * (b_start.x - a_start.x)
 }
 
 #[cfg(test)]
