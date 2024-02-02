@@ -58,6 +58,8 @@ struct Controls {
     left: bool,
     right: bool,
     action: bool,
+    up: bool,
+    down: bool,
 }
 
 #[derive(Component)]
@@ -74,8 +76,12 @@ fn update_player(
 
     for keyboard_event in keyboard_events.read() {
         match (keyboard_event.key_code, keyboard_event.state) {
+            (Some(KeyCode::W), ButtonState::Pressed) => { player_controls.up = true }
+            (Some(KeyCode::W), ButtonState::Released) => { player_controls.up = false }
             (Some(KeyCode::A), ButtonState::Pressed) => { player_controls.left = true }
             (Some(KeyCode::A), ButtonState::Released) => { player_controls.left = false }
+            (Some(KeyCode::S), ButtonState::Pressed) => { player_controls.down = true }
+            (Some(KeyCode::S), ButtonState::Released) => { player_controls.down = false }
             (Some(KeyCode::D), ButtonState::Pressed) => { player_controls.right = true }
             (Some(KeyCode::D), ButtonState::Released) => { player_controls.right = false }
             (Some(KeyCode::Space), ButtonState::Pressed) => { player_controls.action = true }
@@ -86,7 +92,9 @@ fn update_player(
 
     let left = if player_controls.left { Vec2::NEG_X } else { Vec2::ZERO };
     let right = if player_controls.right { Vec2::X } else { Vec2::ZERO };
-    player_velocity.linvel = 16. * (left + right);
+    let up = if player_controls.up { Vec2::Y } else { Vec2::ZERO };
+    let down = if player_controls.down { Vec2::NEG_Y } else { Vec2::ZERO };
+    player_velocity.linvel = 16. * (left + right + up + down);
 
     if let Some(cursor_point) = window_query
         .single()
@@ -114,7 +122,7 @@ fn startup_terrain(mut commands: Commands) {
 }
 
 fn update_terrain(
-    mut commands:Commands,
+    mut commands: Commands,
     mut player_query: Query<(&Controls, &Transform), With<Player>>,
     terrain_query: Query<(Entity, &Polygon, &Transform)>,
     mut gizmos: Gizmos,
