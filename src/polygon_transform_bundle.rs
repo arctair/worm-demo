@@ -30,6 +30,16 @@ impl PolygonTransformBundle {
         let mut start_bounds_index = 1;
         let mut end_bounds_index = 0;
         let mut intersection = None;
+        for _ in 0..bounds_vertices.len() {
+            let start_bounds = bounds_vertices[start_bounds_index];
+            let end_bounds = bounds_vertices[end_bounds_index];
+            intersection = intersection_contains(vertices[0], vertices[1], start_bounds, end_bounds)
+                .filter(|_| cross(vertices[0], vertices[1], start_bounds) < 0.);
+            if intersection.is_some() { break; }
+
+            start_bounds_index = end_bounds_index;
+            end_bounds_index = (end_bounds_index + bounds_vertices.len() - 1) % bounds_vertices.len();
+        }
 
         while new_vertices.is_empty() || start_index != 0 || !is_tracing_self {
             if is_tracing_self {
@@ -39,7 +49,9 @@ impl PolygonTransformBundle {
                 for _ in 0..bounds_vertices.len() {
                     let start_bounds = bounds_vertices[start_bounds_index];
                     let end_bounds = bounds_vertices[end_bounds_index];
-                    intersection = intersection_contains(start, end, start_bounds, end_bounds);
+                    intersection = intersection_contains(start, end, start_bounds, end_bounds)
+                        .filter(|_| cross(start, end, start_bounds) > 0.)
+                    ;
                     if intersection.is_some() { break; }
 
                     start_bounds_index = end_bounds_index;
@@ -87,7 +99,7 @@ fn intersection_contains(a_start: Vec2, a_end: Vec2, b_start: Vec2, b_end: Vec2)
         &Point2::from(b_start),
         &Point2::from(b_end),
         0.01,
-    ).filter(|| cross(a_start, a_end, b_start) > 0.) {
+    ) {
         Some(Point { loc1: SegmentPointLocation::OnEdge([_, from_start]), .. }) =>
             Some(a_start + from_start * (a_end - a_start)),
         _ => None
@@ -137,6 +149,52 @@ mod tests {
 
         let parent = current_dir()?;
         return Ok(format!("file:///{}", parent.join(comparison_image).display()));
+    }
+
+    #[test]
+    fn test_sink_intersect_start() {
+        let left_operand = PolygonTransformBundle {
+            polygon: Polygon::from(vec![
+                Vec2::new(2., 2.),
+                Vec2::new(2., -2.),
+                Vec2::new(-2., -2.),
+                Vec2::new(-2., 2.),
+            ]),
+            transform: Transform::from_xyz(0., 0., 0.),
+        };
+
+        let right_operand = PolygonTransformBundle {
+            polygon: Polygon::from(vec![
+                Vec2::new(3., 3.),
+                Vec2::new(3., 1.),
+                Vec2::new(1., 1.),
+                Vec2::new(1., 3.),
+            ]),
+            transform: Transform::from_xyz(0., 0., 0.),
+        };
+
+        let actual = left_operand.clone().sink(&right_operand);
+        let expected = PolygonTransformBundle {
+            polygon: Polygon::from(vec![
+                Vec2::new(2., 1.),
+                Vec2::new(2., -2.),
+                Vec2::new(-2., -2.),
+                Vec2::new(-2., 2.),
+                Vec2::new(1., 2.),
+                Vec2::new(1., 1.),
+            ]),
+            transform: Transform::from_xyz(0., 0., 0.),
+        };
+
+        let scene = Document::new()
+            .set("viewBox", (-3, -3, 6, 6))
+            .add(svg_path(&actual, "red", 0.25))
+            .add(svg_path(&expected, "green", 0.125))
+            .add(svg_path(&left_operand, "black", 0.125 / 4.))
+            .add(svg_path(&right_operand, "white", 0.125 / 4.))
+            ;
+
+        assert_eq!(actual, expected, "Visual: {:?}", save_svg(scene, "test_sink_intersect_start"))
     }
 
     #[test]
