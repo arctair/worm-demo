@@ -6,13 +6,6 @@ use bevy_rapier2d::parry::utils::segments_intersection2d;
 use bevy_rapier2d::parry::utils::SegmentsIntersection::Point;
 use crate::polygon::Polygon;
 
-
-#[derive(Clone, Copy, Debug)]
-enum TraceMode {
-    TracingSelf,
-    TracingBounds,
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PolygonTransformBundle {
     pub(crate) polygon: Polygon,
@@ -31,61 +24,52 @@ impl PolygonTransformBundle {
         let bounds_vertices = bounds.polygon.to_global_space(&bounds.transform).vertices;
 
         let mut new_vertices = vec![];
-        let mut trace_mode = TraceMode::TracingSelf;
+        let mut is_tracing_self = true;
         let mut start_index = 0;
         let mut end_index = 1;
         let mut start_bounds_index = 1;
         let mut end_bounds_index = 0;
         let mut intersection = None;
 
-        while new_vertices.is_empty() || start_index != 0 || match trace_mode {
-            TraceMode::TracingBounds => true,
-            _ => false
-        } {
-            match trace_mode {
-                TraceMode::TracingSelf => {
-                    let start = intersection.unwrap_or(vertices[start_index]);
-                    let end = vertices[end_index];
-                    new_vertices.push(start);
-                    for _ in 0..bounds_vertices.len() {
-                        let start_bounds = bounds_vertices[start_bounds_index];
-                        let end_bounds = bounds_vertices[end_bounds_index];
-                        intersection = intersection_contains(start, end, start_bounds, end_bounds);
-                        if intersection.is_some() { break; }
+        while new_vertices.is_empty() || start_index != 0 || !is_tracing_self {
+            if is_tracing_self {
+                let start = intersection.unwrap_or(vertices[start_index]);
+                let end = vertices[end_index];
+                new_vertices.push(start);
+                for _ in 0..bounds_vertices.len() {
+                    let start_bounds = bounds_vertices[start_bounds_index];
+                    let end_bounds = bounds_vertices[end_bounds_index];
+                    intersection = intersection_contains(start, end, start_bounds, end_bounds);
+                    if intersection.is_some() { break; }
 
-                        start_bounds_index = end_bounds_index;
-                        end_bounds_index = (end_bounds_index + bounds_vertices.len() - 1) % bounds_vertices.len();
-                    }
-                }
-                TraceMode::TracingBounds => {
-                    let start_bounds = intersection.unwrap_or(bounds_vertices[start_bounds_index]);
-                    new_vertices.push(start_bounds);
-                    for _ in 0..vertices.len() {
-                        intersection = intersection_contains(
-                            start_bounds,
-                            bounds_vertices[end_bounds_index],
-                            vertices[start_index],
-                            vertices[end_index],
-                        );
-                        if intersection.is_some() { break; }
-
-                        start_index = end_index;
-                        end_index = (end_index + 1) % vertices.len();
-                    }
-                }
-            }
-
-            match (trace_mode, intersection) {
-                (TraceMode::TracingSelf, Some(_)) => trace_mode = TraceMode::TracingBounds,
-                (TraceMode::TracingBounds, Some(_)) => trace_mode = TraceMode::TracingSelf,
-                (TraceMode::TracingSelf, None) => {
-                    start_index = end_index;
-                    end_index = (end_index + 1) % vertices.len();
-                }
-                (TraceMode::TracingBounds, None) => {
                     start_bounds_index = end_bounds_index;
                     end_bounds_index = (end_bounds_index + bounds_vertices.len() - 1) % bounds_vertices.len();
                 }
+            } else {
+                let start_bounds = intersection.unwrap_or(bounds_vertices[start_bounds_index]);
+                new_vertices.push(start_bounds);
+                for _ in 0..vertices.len() {
+                    intersection = intersection_contains(
+                        start_bounds,
+                        bounds_vertices[end_bounds_index],
+                        vertices[start_index],
+                        vertices[end_index],
+                    );
+                    if intersection.is_some() { break; }
+
+                    start_index = end_index;
+                    end_index = (end_index + 1) % vertices.len();
+                }
+            }
+
+            if intersection.is_some() {
+                is_tracing_self = !is_tracing_self;
+            } else if is_tracing_self {
+                start_index = end_index;
+                end_index = (end_index + 1) % vertices.len();
+            } else {
+                start_bounds_index = end_bounds_index;
+                end_bounds_index = (end_bounds_index + bounds_vertices.len() - 1) % bounds_vertices.len();
             }
         }
 
