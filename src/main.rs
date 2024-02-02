@@ -26,7 +26,7 @@ fn main() {
         .add_systems(Update, update_player)
 
         .add_systems(Startup, startup_terrain)
-        .add_systems(Update, update_terrain)
+        .add_systems(Update, (update_terrain, update_terrain_gizmo))
 
         .run();
 }
@@ -127,7 +127,12 @@ fn update_terrain(
             gizmos.circle_2d(position.truncate(), 0.25, Color::YELLOW);
         }
     }
+}
 
+fn update_terrain_gizmo(
+    terrain_query: Query<(&Polygon, &Transform)>,
+    mut gizmos: Gizmos,
+) {
     for (polygon, transform) in terrain_query.iter() {
         for index in 0..polygon.vertices.len() {
             let start = transform.translation + transform.scale * polygon.vertices[index].extend(0.);
