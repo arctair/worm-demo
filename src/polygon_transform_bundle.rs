@@ -1,11 +1,9 @@
 use bevy::math::Vec2;
-use bevy::prelude::{Component, Transform};
+use bevy::prelude::Transform;
 use bevy_rapier2d::na::Point2;
 use bevy_rapier2d::parry::shape::SegmentPointLocation;
 use bevy_rapier2d::parry::utils::segments_intersection2d;
 use bevy_rapier2d::parry::utils::SegmentsIntersection::Point;
-use svg::node::element::Path;
-use svg::node::element::path::Data;
 use crate::polygon::Polygon;
 
 
@@ -96,27 +94,6 @@ impl PolygonTransformBundle {
             transform: self.transform,
         };
     }
-
-    pub(crate) fn svg_path(&self, stroke: &str, stroke_width: f64) -> Path {
-        return Path::new()
-            .set("fill", "none")
-            .set("stroke", stroke)
-            .set("stroke-width", stroke_width)
-            .set("d", self.svg_path_data());
-    }
-
-    fn svg_path_data(&self) -> Data {
-        let vertices = self.polygon.to_global_space(&self.transform).vertices;
-
-        let mut data = Data::new()
-            .move_to((vertices[0].x, -vertices[0].y));
-
-        for vertex in vertices.iter().skip(1) {
-            data = data.line_to((vertex.x, -vertex.y));
-        }
-
-        return data.close();
-    }
 }
 
 fn intersection_contains(a_start: Vec2, a_end: Vec2, b_start: Vec2, b_end: Vec2) -> Option<Vec2> {
@@ -141,11 +118,34 @@ fn intersection_contains(a_start: Vec2, a_end: Vec2, b_start: Vec2, b_end: Vec2)
 mod tests {
     use std::env::current_dir;
     use std::io;
-    use bevy::math::{Vec2, Vec3};
+    use bevy::math::Vec2;
     use bevy::prelude::Transform;
     use svg::Document;
+    use svg::node::element::Path;
+    use svg::node::element::path::Data;
     use crate::polygon::{Polygon};
     use crate::polygon_transform_bundle::PolygonTransformBundle;
+
+    fn svg_path(bundle: &PolygonTransformBundle, stroke: &str, stroke_width: f64) -> Path {
+        return Path::new()
+            .set("fill", "none")
+            .set("stroke", stroke)
+            .set("stroke-width", stroke_width)
+            .set("d", svg_path_data(bundle));
+    }
+
+    fn svg_path_data(bundle: &PolygonTransformBundle) -> Data {
+        let vertices = bundle.polygon.to_global_space(&bundle.transform).vertices;
+
+        let mut data = Data::new()
+            .move_to((vertices[0].x, -vertices[0].y));
+
+        for vertex in vertices.iter().skip(1) {
+            data = data.line_to((vertex.x, -vertex.y));
+        }
+
+        return data.close();
+    }
 
     fn save_svg(document: Document, stable_name: &str) -> io::Result<String> {
         let comparison_image = &format!("target/{stable_name}.svg");
@@ -194,10 +194,10 @@ mod tests {
 
         let scene = Document::new()
             .set("viewBox", (-3, -3, 6, 6))
-            .add(actual.svg_path("red", 0.25))
-            .add(expected.svg_path("green", 0.125))
-            .add(left_operand.svg_path("black", 0.125 / 4.))
-            .add(right_operand.svg_path("white", 0.125 / 4.))
+            .add(svg_path(&actual, "red", 0.25))
+            .add(svg_path(&expected, "green", 0.125))
+            .add(svg_path(&left_operand, "black", 0.125 / 4.))
+            .add(svg_path(&right_operand, "white", 0.125 / 4.))
             ;
 
         assert_eq!(actual, expected, "Visual: {:?}", save_svg(scene, "test_sink_simple_subtract"))
@@ -251,10 +251,10 @@ mod tests {
 
         let scene = Document::new()
             .set("viewBox", (-3, -4, 7, 6))
-            .add(actual.svg_path("red", 0.25))
-            .add(expected.svg_path("green", 0.125))
-            .add(left_operand.svg_path("black", 0.125 / 4.))
-            .add(right_operand.svg_path("white", 0.125 / 4.))
+            .add(svg_path(&actual, "red", 0.25))
+            .add(svg_path(&expected, "green", 0.125))
+            .add(svg_path(&left_operand, "black", 0.125 / 4.))
+            .add(svg_path(&right_operand, "white", 0.125 / 4.))
             ;
 
         assert_eq!(actual, expected, "Visual: {:?}", save_svg(scene, "test_sink_double_subtract"))
