@@ -58,14 +58,17 @@ impl PolygonTransformBundle {
                 }
             } else {
                 let start_bounds = intersection.unwrap_or(bounds_vertices[start_bounds_index]);
+                let end_bounds = bounds_vertices[end_bounds_index];
                 new_vertices.push(start_bounds);
                 for _ in 0..vertices.len() {
+                    let start = vertices[start_index];
                     intersection = my_intersection(
                         start_bounds,
-                        bounds_vertices[end_bounds_index],
-                        vertices[start_index],
+                        end_bounds,
+                        start,
                         vertices[end_index],
-                    );
+                    )
+                        .filter(|_| cross(start_bounds, end_bounds, start) > 0.);
                     if intersection.is_some() { break; }
 
                     start_index = end_index;
