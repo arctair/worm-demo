@@ -153,13 +153,12 @@ mod tests {
     fn test_sink_simple_subtract() {
         let left_operand = PolygonTransformBundle {
             polygon: Polygon::from(vec![
-                Vec2::new(-4., -12.),
-                Vec2::new(-4., -20.),
-                Vec2::new(-12., -20.),
-                Vec2::new(-12., -12.),
+                Vec2::new(2., 2.),
+                Vec2::new(2., -2.),
+                Vec2::new(-2., -2.),
+                Vec2::new(-2., 2.),
             ]),
-            transform: Transform::from_xyz(4., 8., 0.)
-                .with_scale(Vec3::splat(0.5)),
+            transform: Transform::from_xyz(0., 0., 0.),
         };
 
         let right_operand = PolygonTransformBundle {
@@ -175,17 +174,16 @@ mod tests {
         let actual = left_operand.clone().sink(2., right_operand.clone());
         let expected = PolygonTransformBundle {
             polygon: Polygon::from(vec![
-                Vec2::new(-4., -12.),
-                Vec2::new(-4., -20.),
-                Vec2::new(-12., -20.),
-                Vec2::new(-12., -12.),
-                Vec2::new(-10., -12.),
-                Vec2::new(-10., -14.),
-                Vec2::new(-6., -14.),
-                Vec2::new(-6., -12.),
+                Vec2::new(2., 2.),
+                Vec2::new(2., -2.),
+                Vec2::new(-2., -2.),
+                Vec2::new(-2., 2.),
+                Vec2::new(-1., 2.),
+                Vec2::new(-1., 1.),
+                Vec2::new(1., 1.),
+                Vec2::new(1., 2.),
             ]),
-            transform: Transform::from_xyz(4., 8., 0.)
-                .with_scale(Vec3::splat(0.5)),
+            transform: Transform::from_xyz(0., 0., 0.),
         };
 
         let scene = Document::new()
@@ -203,45 +201,45 @@ mod tests {
     fn test_sink_double_subtract() {
         let left_operand = PolygonTransformBundle {
             polygon: Polygon::from(vec![
-                Vec2::new(3., 2.),
-                Vec2::new(3., 0.),
-                Vec2::new(-2., 0.),
-                Vec2::new(-2., 2.),
+                Vec2::new(2., 2.),
+                Vec2::new(2., 0.),
+                Vec2::new(-3., 0.),
+                Vec2::new(-3., 2.),
             ]),
-            transform: Transform::from_xyz(0., 0., 0.),
+            transform: Transform::from_xyz(1., 0., 0.),
         };
 
         let right_operand = PolygonTransformBundle {
             polygon: Polygon::from(vec![
-                Vec2::new(2., 4.),
-                Vec2::new(2., 1.),
+                Vec2::new(1., 4.),
                 Vec2::new(1., 1.),
-                Vec2::new(1., 3.),
-                Vec2::new(0., 3.),
                 Vec2::new(0., 1.),
+                Vec2::new(0., 3.),
+                Vec2::new(-1., 3.),
                 Vec2::new(-1., 1.),
-                Vec2::new(-1., 4.),
+                Vec2::new(-2., 1.),
+                Vec2::new(-2., 4.),
             ]),
-            transform: Transform::from_xyz(0., 0., 0.),
+            transform: Transform::from_xyz(1., 0., 0.),
         };
 
         let actual = left_operand.clone().sink(2., right_operand.clone());
         let expected = PolygonTransformBundle {
             polygon: Polygon::from(vec![
-                Vec2::new(3., 2.),
-                Vec2::new(3., 0.),
-                Vec2::new(-2., 0.),
-                Vec2::new(-2., 2.),
-                Vec2::new(-1., 2.),
-                Vec2::new(-1., 1.),
-                Vec2::new(0., 1.),
-                Vec2::new(0., 2.),
-                Vec2::new(1., 2.),
-                Vec2::new(1., 1.),
-                Vec2::new(2., 1.),
                 Vec2::new(2., 2.),
+                Vec2::new(2., 0.),
+                Vec2::new(-3., 0.),
+                Vec2::new(-3., 2.),
+                Vec2::new(-2., 2.),
+                Vec2::new(-2., 1.),
+                Vec2::new(-1., 1.),
+                Vec2::new(-1., 2.),
+                Vec2::new(0., 2.),
+                Vec2::new(0., 1.),
+                Vec2::new(1., 1.),
+                Vec2::new(1., 2.),
             ]),
-            transform: Transform::from_xyz(0., 0., 0.),
+            transform: Transform::from_xyz(1., 0., 0.),
         };
 
 
