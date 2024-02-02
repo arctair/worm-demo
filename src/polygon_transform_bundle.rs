@@ -33,7 +33,7 @@ impl PolygonTransformBundle {
         for _ in 0..bounds_vertices.len() {
             let start_bounds = bounds_vertices[start_bounds_index];
             let end_bounds = bounds_vertices[end_bounds_index];
-            intersection = intersection_contains(vertices[0], vertices[1], start_bounds, end_bounds)
+            intersection = my_intersection(vertices[0], vertices[1], start_bounds, end_bounds)
                 .filter(|_| cross(vertices[0], vertices[1], start_bounds) < 0.);
             if intersection.is_some() { break; }
 
@@ -49,9 +49,8 @@ impl PolygonTransformBundle {
                 for _ in 0..bounds_vertices.len() {
                     let start_bounds = bounds_vertices[start_bounds_index];
                     let end_bounds = bounds_vertices[end_bounds_index];
-                    intersection = intersection_contains(start, end, start_bounds, end_bounds)
-                        .filter(|_| cross(start, end, start_bounds) > 0.)
-                    ;
+                    intersection = my_intersection(start, end, start_bounds, end_bounds)
+                        .filter(|_| cross(start, end, start_bounds) > 0.);
                     if intersection.is_some() { break; }
 
                     start_bounds_index = end_bounds_index;
@@ -61,7 +60,7 @@ impl PolygonTransformBundle {
                 let start_bounds = intersection.unwrap_or(bounds_vertices[start_bounds_index]);
                 new_vertices.push(start_bounds);
                 for _ in 0..vertices.len() {
-                    intersection = intersection_contains(
+                    intersection = my_intersection(
                         start_bounds,
                         bounds_vertices[end_bounds_index],
                         vertices[start_index],
@@ -92,13 +91,13 @@ impl PolygonTransformBundle {
     }
 }
 
-fn intersection_contains(a_start: Vec2, a_end: Vec2, b_start: Vec2, b_end: Vec2) -> Option<Vec2> {
+fn my_intersection(a_start: Vec2, a_end: Vec2, b_start: Vec2, b_end: Vec2) -> Option<Vec2> {
     match segments_intersection2d(
         &Point2::from(a_start),
         &Point2::from(a_end),
         &Point2::from(b_start),
         &Point2::from(b_end),
-        0.01,
+        0.000001,
     ) {
         Some(Point { loc1: SegmentPointLocation::OnEdge([_, from_start]), .. }) =>
             Some(a_start + from_start * (a_end - a_start)),
