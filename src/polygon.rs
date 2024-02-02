@@ -18,6 +18,24 @@ impl From<Vec<Vec2>> for Polygon {
     }
 }
 
+impl Polygon {
+    fn to_global_space(&self, transform: Transform) -> Polygon {
+        let mut global_vertices = self.vertices.clone();
+        for index in 0..global_vertices.len() {
+            global_vertices[index] += transform.translation.truncate();
+        }
+        return Polygon::from(global_vertices);
+    }
+
+    fn to_local_space(&self, transform: Transform) -> Polygon {
+        let mut local_vertices = self.vertices.clone();
+        for index in 0..local_vertices.len() {
+            local_vertices[index] -= transform.translation.truncate();
+        }
+        return Polygon::from(local_vertices);
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 enum TraceMode {
     TracingSelf,
@@ -32,6 +50,9 @@ struct PolygonTransformBundle {
 
 impl PolygonTransformBundle {
     fn sink(self, area: f32, bounds: Self) -> Self {
+        let vertices = self.polygon.to_global_space(self.transform).vertices;
+        let bounds_vertices = bounds.polygon.to_global_space(bounds.transform).vertices;
+
         let mut new_vertices = vec![];
         let mut trace_mode = TraceMode::TracingSelf;
         let mut start_index = 0;
@@ -46,32 +67,33 @@ impl PolygonTransformBundle {
         } {
             match trace_mode {
                 TraceMode::TracingSelf => {
-                    let start = intersection.unwrap_or(self.polygon.vertices[start_index]);
+                    let start = intersection.unwrap_or(vertices[start_index]);
+                    let end = vertices[end_index];
                     new_vertices.push(start);
-                    for _ in 0..bounds.polygon.vertices.len() {
-                        let end = self.polygon.vertices[end_index];
-                        let start_bounds = bounds.polygon.vertices[start_bounds_index];
-                        intersection = intersection_contains(start, end, start_bounds, bounds.polygon.vertices[end_bounds_index]);
+                    for _ in 0..bounds_vertices.len() {
+                        let start_bounds = bounds_vertices[start_bounds_index];
+                        let end_bounds = bounds_vertices[end_bounds_index];
+                        intersection = intersection_contains(start, end, start_bounds, end_bounds);
                         if intersection.is_some() { break; }
 
                         start_bounds_index = end_bounds_index;
-                        end_bounds_index = (end_bounds_index + bounds.polygon.vertices.len() - 1) % bounds.polygon.vertices.len();
+                        end_bounds_index = (end_bounds_index + bounds_vertices.len() - 1) % bounds_vertices.len();
                     }
                 }
                 TraceMode::TracingBounds => {
-                    let start_bounds = intersection.unwrap_or(bounds.polygon.vertices[start_bounds_index]);
+                    let start_bounds = intersection.unwrap_or(bounds_vertices[start_bounds_index]);
                     new_vertices.push(start_bounds);
-                    for _ in 0..self.polygon.vertices.len() {
+                    for _ in 0..vertices.len() {
                         intersection = intersection_contains(
                             start_bounds,
-                            bounds.polygon.vertices[end_bounds_index],
-                            self.polygon.vertices[start_index],
-                            self.polygon.vertices[end_index],
+                            bounds_vertices[end_bounds_index],
+                            vertices[start_index],
+                            vertices[end_index],
                         );
                         if intersection.is_some() { break; }
 
                         start_index = end_index;
-                        end_index = (end_index + 1) % self.polygon.vertices.len();
+                        end_index = (end_index + 1) % vertices.len();
                     }
                 }
             }
@@ -81,17 +103,17 @@ impl PolygonTransformBundle {
                 (TraceMode::TracingBounds, Some(_)) => trace_mode = TraceMode::TracingSelf,
                 (TraceMode::TracingSelf, None) => {
                     start_index = end_index;
-                    end_index = (end_index + 1) % self.polygon.vertices.len();
+                    end_index = (end_index + 1) % vertices.len();
                 }
                 (TraceMode::TracingBounds, None) => {
                     start_bounds_index = end_bounds_index;
-                    end_bounds_index = (end_bounds_index + bounds.polygon.vertices.len() - 1) % bounds.polygon.vertices.len();
+                    end_bounds_index = (end_bounds_index + bounds_vertices.len() - 1) % bounds_vertices.len();
                 }
             }
         }
 
-        return Self {
-            polygon: Polygon::from(new_vertices),
+        return PolygonTransformBundle {
+            polygon: Polygon::from(new_vertices).to_local_space(self.transform),
             transform: self.transform,
         };
     }
@@ -104,11 +126,13 @@ impl PolygonTransformBundle {
             .set("d", self.svg_path_data());
     }
 
-    pub(crate) fn svg_path_data(&self) -> Data {
-        let mut data = Data::new()
-            .move_to((self.polygon.vertices[0].x, -self.polygon.vertices[0].y));
+    fn svg_path_data(&self) -> Data {
+        let vertices = self.polygon.to_global_space(self.transform).vertices;
 
-        for vertex in self.polygon.vertices.iter().skip(1) {
+        let mut data = Data::new()
+            .move_to((vertices[0].x, -vertices[0].y));
+
+        for vertex in vertices.iter().skip(1) {
             data = data.line_to((vertex.x, -vertex.y));
         }
 
@@ -155,12 +179,12 @@ mod tests {
     fn test_sink_simple_subtract() {
         let left_operand = PolygonTransformBundle {
             polygon: Polygon::from(vec![
-                Vec2::new(2., 2.),
-                Vec2::new(2., -2.),
-                Vec2::new(-2., -2.),
-                Vec2::new(-2., 2.),
+                Vec2::new(-2., -6.),
+                Vec2::new(-2., -10.),
+                Vec2::new(-6., -10.),
+                Vec2::new(-6., -6.),
             ]),
-            transform: Transform::from_xyz(0., 0., 0.),
+            transform: Transform::from_xyz(4., 8., 0.),
         };
 
         let right_operand = PolygonTransformBundle {
@@ -176,16 +200,16 @@ mod tests {
         let actual = left_operand.clone().sink(2., right_operand.clone());
         let expected = PolygonTransformBundle {
             polygon: Polygon::from(vec![
-                Vec2::new(2., 2.),
-                Vec2::new(2., -2.),
-                Vec2::new(-2., -2.),
-                Vec2::new(-2., 2.),
-                Vec2::new(-1., 2.),
-                Vec2::new(-1., 1.),
-                Vec2::new(1., 1.),
-                Vec2::new(1., 2.),
+                Vec2::new(-2., -6.),
+                Vec2::new(-2., -10.),
+                Vec2::new(-6., -10.),
+                Vec2::new(-6., -6.),
+                Vec2::new(-5., -6.),
+                Vec2::new(-5., -7.),
+                Vec2::new(-3., -7.),
+                Vec2::new(-3., -6.),
             ]),
-            transform: Transform::from_xyz(0., 0., 0.),
+            transform: Transform::from_xyz(4., 8., 0.),
         };
 
         let scene = Document::new()
