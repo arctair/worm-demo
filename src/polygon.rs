@@ -19,9 +19,10 @@ impl From<Vec<Vec2>> for Polygon {
 }
 
 impl Polygon {
-    fn to_global_space(&self, transform: Transform) -> Polygon {
+    pub(crate) fn to_global_space(&self, transform: &Transform) -> Polygon {
         let mut global_vertices = self.vertices.clone();
         for index in 0..global_vertices.len() {
+            global_vertices[index] *= transform.scale.truncate();
             global_vertices[index] += transform.translation.truncate();
         }
         return Polygon::from(global_vertices);
@@ -31,6 +32,7 @@ impl Polygon {
         let mut local_vertices = self.vertices.clone();
         for index in 0..local_vertices.len() {
             local_vertices[index] -= transform.translation.truncate();
+            local_vertices[index] /= transform.scale.truncate();
         }
         return Polygon::from(local_vertices);
     }
@@ -50,8 +52,8 @@ struct PolygonTransformBundle {
 
 impl PolygonTransformBundle {
     fn sink(self, area: f32, bounds: Self) -> Self {
-        let vertices = self.polygon.to_global_space(self.transform).vertices;
-        let bounds_vertices = bounds.polygon.to_global_space(bounds.transform).vertices;
+        let vertices = self.polygon.to_global_space(&self.transform).vertices;
+        let bounds_vertices = bounds.polygon.to_global_space(&bounds.transform).vertices;
 
         let mut new_vertices = vec![];
         let mut trace_mode = TraceMode::TracingSelf;
@@ -127,7 +129,7 @@ impl PolygonTransformBundle {
     }
 
     fn svg_path_data(&self) -> Data {
-        let vertices = self.polygon.to_global_space(self.transform).vertices;
+        let vertices = self.polygon.to_global_space(&self.transform).vertices;
 
         let mut data = Data::new()
             .move_to((vertices[0].x, -vertices[0].y));
@@ -162,7 +164,7 @@ fn intersection_contains(a_start: Vec2, a_end: Vec2, b_start: Vec2, b_end: Vec2)
 mod tests {
     use std::env::current_dir;
     use std::io;
-    use bevy::math::Vec2;
+    use bevy::math::{Vec2, Vec3};
     use bevy::prelude::Transform;
     use svg::Document;
     use crate::polygon::{Polygon, PolygonTransformBundle};
@@ -179,12 +181,13 @@ mod tests {
     fn test_sink_simple_subtract() {
         let left_operand = PolygonTransformBundle {
             polygon: Polygon::from(vec![
-                Vec2::new(-2., -6.),
-                Vec2::new(-2., -10.),
-                Vec2::new(-6., -10.),
-                Vec2::new(-6., -6.),
+                Vec2::new(-4., -12.),
+                Vec2::new(-4., -20.),
+                Vec2::new(-12., -20.),
+                Vec2::new(-12., -12.),
             ]),
-            transform: Transform::from_xyz(4., 8., 0.),
+            transform: Transform::from_xyz(4., 8., 0.)
+                .with_scale(Vec3::splat(0.5)),
         };
 
         let right_operand = PolygonTransformBundle {
@@ -200,16 +203,17 @@ mod tests {
         let actual = left_operand.clone().sink(2., right_operand.clone());
         let expected = PolygonTransformBundle {
             polygon: Polygon::from(vec![
-                Vec2::new(-2., -6.),
-                Vec2::new(-2., -10.),
-                Vec2::new(-6., -10.),
-                Vec2::new(-6., -6.),
-                Vec2::new(-5., -6.),
-                Vec2::new(-5., -7.),
-                Vec2::new(-3., -7.),
-                Vec2::new(-3., -6.),
+                Vec2::new(-4., -12.),
+                Vec2::new(-4., -20.),
+                Vec2::new(-12., -20.),
+                Vec2::new(-12., -12.),
+                Vec2::new(-10., -12.),
+                Vec2::new(-10., -14.),
+                Vec2::new(-6., -14.),
+                Vec2::new(-6., -12.),
             ]),
-            transform: Transform::from_xyz(4., 8., 0.),
+            transform: Transform::from_xyz(4., 8., 0.)
+                .with_scale(Vec3::splat(0.5)),
         };
 
         let scene = Document::new()

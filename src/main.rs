@@ -134,10 +134,13 @@ fn update_terrain_gizmo(
     mut gizmos: Gizmos,
 ) {
     for (polygon, transform) in terrain_query.iter() {
-        for index in 0..polygon.vertices.len() {
-            let start = transform.translation + transform.scale * polygon.vertices[index].extend(0.);
-            let end = transform.translation + transform.scale * polygon.vertices[(index + 1) % polygon.vertices.len()].extend(0.);
-            gizmos.line(start, end, Color::ORANGE);
+        let vertices = polygon.to_global_space(transform).vertices;
+        for index in 0..vertices.len() {
+            gizmos.line(
+                vertices[index].extend(0.),
+                vertices[(index + 1) % vertices.len()].extend(0.),
+                Color::ORANGE,
+            );
         }
     }
 }
