@@ -1,9 +1,9 @@
 use bevy::math::Vec2;
-use bevy::prelude::Component;
+use bevy::prelude::{Component, Transform};
 use bevy_rapier2d::na::Point2;
 use bevy_rapier2d::parry::shape::SegmentPointLocation;
 use bevy_rapier2d::parry::utils::segments_intersection2d;
-use bevy_rapier2d::parry::utils::SegmentsIntersection::{Point, Segment};
+use bevy_rapier2d::parry::utils::SegmentsIntersection::Point;
 use svg::node::element::Path;
 use svg::node::element::path::Data;
 
@@ -12,24 +12,9 @@ pub(crate) struct Polygon {
     pub(crate) vertices: Vec<Vec2>,
 }
 
-impl Polygon {
-    pub(crate) fn svg_path(&self, stroke: &str, stroke_width: f64) -> Path {
-        return Path::new()
-            .set("fill", "none")
-            .set("stroke", stroke)
-            .set("stroke-width", stroke_width)
-            .set("d", self.svg_path_data());
-    }
-
-    pub(crate) fn svg_path_data(&self) -> Data {
-        let mut data = Data::new()
-            .move_to((self.vertices[0].x, -self.vertices[0].y));
-
-        for vertex in self.vertices.iter().skip(1) {
-            data = data.line_to((vertex.x, -vertex.y));
-        }
-
-        return data.close();
+impl From<Vec<Vec2>> for Polygon {
+    fn from(vertices: Vec<Vec2>) -> Self {
+        Polygon { vertices }
     }
 }
 
@@ -39,7 +24,13 @@ enum TraceMode {
     TracingBounds,
 }
 
-impl Polygon {
+#[derive(Clone, Debug, PartialEq)]
+struct PolygonTransformBundle {
+    polygon: Polygon,
+    transform: Transform,
+}
+
+impl PolygonTransformBundle {
     fn sink(self, area: f32, bounds: Self) -> Self {
         let mut new_vertices = vec![];
         let mut trace_mode = TraceMode::TracingSelf;
@@ -55,32 +46,32 @@ impl Polygon {
         } {
             match trace_mode {
                 TraceMode::TracingSelf => {
-                    let start = intersection.unwrap_or(self.vertices[start_index]);
+                    let start = intersection.unwrap_or(self.polygon.vertices[start_index]);
                     new_vertices.push(start);
-                    for _ in 0..bounds.vertices.len() {
-                        let end = self.vertices[end_index];
-                        let start_bounds = bounds.vertices[start_bounds_index];
-                        intersection = intersection_contains(start, end, start_bounds, bounds.vertices[end_bounds_index]);
+                    for _ in 0..bounds.polygon.vertices.len() {
+                        let end = self.polygon.vertices[end_index];
+                        let start_bounds = bounds.polygon.vertices[start_bounds_index];
+                        intersection = intersection_contains(start, end, start_bounds, bounds.polygon.vertices[end_bounds_index]);
                         if intersection.is_some() { break; }
 
                         start_bounds_index = end_bounds_index;
-                        end_bounds_index = (end_bounds_index + bounds.vertices.len() - 1) % bounds.vertices.len();
+                        end_bounds_index = (end_bounds_index + bounds.polygon.vertices.len() - 1) % bounds.polygon.vertices.len();
                     }
                 }
                 TraceMode::TracingBounds => {
-                    let start_bounds = intersection.unwrap_or(bounds.vertices[start_bounds_index]);
+                    let start_bounds = intersection.unwrap_or(bounds.polygon.vertices[start_bounds_index]);
                     new_vertices.push(start_bounds);
-                    for _ in 0..self.vertices.len() {
+                    for _ in 0..self.polygon.vertices.len() {
                         intersection = intersection_contains(
                             start_bounds,
-                            bounds.vertices[end_bounds_index],
-                            self.vertices[start_index],
-                            self.vertices[end_index],
+                            bounds.polygon.vertices[end_bounds_index],
+                            self.polygon.vertices[start_index],
+                            self.polygon.vertices[end_index],
                         );
                         if intersection.is_some() { break; }
 
                         start_index = end_index;
-                        end_index = (end_index + 1) % self.vertices.len();
+                        end_index = (end_index + 1) % self.polygon.vertices.len();
                     }
                 }
             }
@@ -90,16 +81,38 @@ impl Polygon {
                 (TraceMode::TracingBounds, Some(_)) => trace_mode = TraceMode::TracingSelf,
                 (TraceMode::TracingSelf, None) => {
                     start_index = end_index;
-                    end_index = (end_index + 1) % self.vertices.len();
+                    end_index = (end_index + 1) % self.polygon.vertices.len();
                 }
                 (TraceMode::TracingBounds, None) => {
                     start_bounds_index = end_bounds_index;
-                    end_bounds_index = (end_bounds_index + bounds.vertices.len() - 1) % bounds.vertices.len();
+                    end_bounds_index = (end_bounds_index + bounds.polygon.vertices.len() - 1) % bounds.polygon.vertices.len();
                 }
             }
         }
 
-        return Self::from(new_vertices);
+        return Self {
+            polygon: Polygon::from(new_vertices),
+            transform: self.transform,
+        };
+    }
+
+    pub(crate) fn svg_path(&self, stroke: &str, stroke_width: f64) -> Path {
+        return Path::new()
+            .set("fill", "none")
+            .set("stroke", stroke)
+            .set("stroke-width", stroke_width)
+            .set("d", self.svg_path_data());
+    }
+
+    pub(crate) fn svg_path_data(&self) -> Data {
+        let mut data = Data::new()
+            .move_to((self.polygon.vertices[0].x, -self.polygon.vertices[0].y));
+
+        for vertex in self.polygon.vertices.iter().skip(1) {
+            data = data.line_to((vertex.x, -vertex.y));
+        }
+
+        return data.close();
     }
 }
 
@@ -121,19 +134,14 @@ fn intersection_contains(a_start: Vec2, a_end: Vec2, b_start: Vec2, b_end: Vec2)
     }
 }
 
-impl From<Vec<Vec2>> for Polygon {
-    fn from(vertices: Vec<Vec2>) -> Self {
-        Polygon { vertices }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::env::current_dir;
     use std::io;
     use bevy::math::Vec2;
+    use bevy::prelude::Transform;
     use svg::Document;
-    use crate::polygon::Polygon;
+    use crate::polygon::{Polygon, PolygonTransformBundle};
 
     fn save_svg(document: Document, stable_name: &str) -> io::Result<String> {
         let comparison_image = &format!("target/{stable_name}.svg");
@@ -145,31 +153,40 @@ mod tests {
 
     #[test]
     fn test_sink_simple_subtract() {
-        let left_operand = Polygon::from(vec![
-            Vec2::new(2., 2.),
-            Vec2::new(2., -2.),
-            Vec2::new(-2., -2.),
-            Vec2::new(-2., 2.),
-        ]);
+        let left_operand = PolygonTransformBundle {
+            polygon: Polygon::from(vec![
+                Vec2::new(2., 2.),
+                Vec2::new(2., -2.),
+                Vec2::new(-2., -2.),
+                Vec2::new(-2., 2.),
+            ]),
+            transform: Transform::from_xyz(0., 0., 0.),
+        };
 
-        let right_operand = Polygon::from(vec![
-            Vec2::new(1., 3.),
-            Vec2::new(1., 1.),
-            Vec2::new(-1., 1.),
-            Vec2::new(-1., 3.),
-        ]);
+        let right_operand = PolygonTransformBundle {
+            polygon: Polygon::from(vec![
+                Vec2::new(1., 3.),
+                Vec2::new(1., 1.),
+                Vec2::new(-1., 1.),
+                Vec2::new(-1., 3.),
+            ]),
+            transform: Transform::from_xyz(0., 0., 0.),
+        };
 
         let actual = left_operand.clone().sink(2., right_operand.clone());
-        let expected = Polygon::from(vec![
-            Vec2::new(2., 2.),
-            Vec2::new(2., -2.),
-            Vec2::new(-2., -2.),
-            Vec2::new(-2., 2.),
-            Vec2::new(-1., 2.),
-            Vec2::new(-1., 1.),
-            Vec2::new(1., 1.),
-            Vec2::new(1., 2.),
-        ]);
+        let expected = PolygonTransformBundle {
+            polygon: Polygon::from(vec![
+                Vec2::new(2., 2.),
+                Vec2::new(2., -2.),
+                Vec2::new(-2., -2.),
+                Vec2::new(-2., 2.),
+                Vec2::new(-1., 2.),
+                Vec2::new(-1., 1.),
+                Vec2::new(1., 1.),
+                Vec2::new(1., 2.),
+            ]),
+            transform: Transform::from_xyz(0., 0., 0.),
+        };
 
         let scene = Document::new()
             .set("viewBox", (-3, -3, 6, 6))
@@ -184,39 +201,49 @@ mod tests {
 
     #[test]
     fn test_sink_double_subtract() {
-        let left_operand = Polygon::from(vec![
-            Vec2::new(3., 2.),
-            Vec2::new(3., 0.),
-            Vec2::new(-2., 0.),
-            Vec2::new(-2., 2.),
-        ]);
+        let left_operand = PolygonTransformBundle {
+            polygon: Polygon::from(vec![
+                Vec2::new(3., 2.),
+                Vec2::new(3., 0.),
+                Vec2::new(-2., 0.),
+                Vec2::new(-2., 2.),
+            ]),
+            transform: Transform::from_xyz(0., 0., 0.),
+        };
 
-        let right_operand = Polygon::from(vec![
-            Vec2::new(2., 4.),
-            Vec2::new(2., 1.),
-            Vec2::new(1., 1.),
-            Vec2::new(1., 3.),
-            Vec2::new(0., 3.),
-            Vec2::new(0., 1.),
-            Vec2::new(-1., 1.),
-            Vec2::new(-1., 4.),
-        ]);
+        let right_operand = PolygonTransformBundle {
+            polygon: Polygon::from(vec![
+                Vec2::new(2., 4.),
+                Vec2::new(2., 1.),
+                Vec2::new(1., 1.),
+                Vec2::new(1., 3.),
+                Vec2::new(0., 3.),
+                Vec2::new(0., 1.),
+                Vec2::new(-1., 1.),
+                Vec2::new(-1., 4.),
+            ]),
+            transform: Transform::from_xyz(0., 0., 0.),
+        };
 
         let actual = left_operand.clone().sink(2., right_operand.clone());
-        let expected = Polygon::from(vec![
-            Vec2::new(3., 2.),
-            Vec2::new(3., 0.),
-            Vec2::new(-2., 0.),
-            Vec2::new(-2., 2.),
-            Vec2::new(-1., 2.),
-            Vec2::new(-1., 1.),
-            Vec2::new(0., 1.),
-            Vec2::new(0., 2.),
-            Vec2::new(1., 2.),
-            Vec2::new(1., 1.),
-            Vec2::new(2., 1.),
-            Vec2::new(2., 2.),
-        ]);
+        let expected = PolygonTransformBundle {
+            polygon: Polygon::from(vec![
+                Vec2::new(3., 2.),
+                Vec2::new(3., 0.),
+                Vec2::new(-2., 0.),
+                Vec2::new(-2., 2.),
+                Vec2::new(-1., 2.),
+                Vec2::new(-1., 1.),
+                Vec2::new(0., 1.),
+                Vec2::new(0., 2.),
+                Vec2::new(1., 2.),
+                Vec2::new(1., 1.),
+                Vec2::new(2., 1.),
+                Vec2::new(2., 2.),
+            ]),
+            transform: Transform::from_xyz(0., 0., 0.),
+        };
+
 
         let scene = Document::new()
             .set("viewBox", (-3, -4, 7, 6))
