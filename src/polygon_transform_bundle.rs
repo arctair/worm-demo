@@ -16,13 +16,19 @@ enum TraceMode {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct PolygonTransformBundle {
-    polygon: Polygon,
+pub(crate) struct PolygonTransformBundle {
+    pub(crate) polygon: Polygon,
     transform: Transform,
 }
 
+impl From<(Polygon, Transform)> for PolygonTransformBundle {
+    fn from((polygon, transform): (Polygon, Transform)) -> Self {
+        Self { polygon, transform }
+    }
+}
+
 impl PolygonTransformBundle {
-    fn sink(self, area: f32, bounds: Self) -> Self {
+    pub(crate) fn sink(self, bounds: &PolygonTransformBundle) -> Self {
         let vertices = self.polygon.to_global_space(&self.transform).vertices;
         let bounds_vertices = bounds.polygon.to_global_space(&bounds.transform).vertices;
 
@@ -171,7 +177,7 @@ mod tests {
             transform: Transform::from_xyz(0., 0., 0.),
         };
 
-        let actual = left_operand.clone().sink(2., right_operand.clone());
+        let actual = left_operand.clone().sink(&right_operand);
         let expected = PolygonTransformBundle {
             polygon: Polygon::from(vec![
                 Vec2::new(2., 2.),
@@ -223,7 +229,7 @@ mod tests {
             transform: Transform::from_xyz(1., 0., 0.),
         };
 
-        let actual = left_operand.clone().sink(2., right_operand.clone());
+        let actual = left_operand.clone().sink(&right_operand);
         let expected = PolygonTransformBundle {
             polygon: Polygon::from(vec![
                 Vec2::new(2., 2.),
